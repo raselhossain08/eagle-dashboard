@@ -7,6 +7,7 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { HealthCheck } from '@/components/health-check'
 import { validateEnvironment } from '@/lib/env'
 import { initSentry } from '@/lib/sentry'
+import { ThemeProvider } from '@/providers/theme-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -95,12 +96,20 @@ export default function RootLayout({
         <ErrorBoundary>
           <SessionProvider>
             <ReactQueryProvider>
+              <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
               <div className="relative">
                 <div className="fixed top-4 right-4 z-50">
                   <HealthCheck />
                 </div>
                 {children}
               </div>
+        </ThemeProvider>
+
             </ReactQueryProvider>
           </SessionProvider>
         </ErrorBoundary>
