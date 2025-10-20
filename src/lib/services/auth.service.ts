@@ -1,141 +1,122 @@
-// lib/api/auth.service.ts
+// lib/services/auth.service.ts
 import { LoginCredentials, LoginResponse, TokenResponse, User, Session, SecurityEvent } from '@/types/auth';
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
+import { SessionStorageService } from '@/lib/auth/session-storage.service';
+import { apiClient } from '@/lib/api/api-client';
 
 export class AuthService {
-  private baseURL = process.env.NEXT_PUBLIC_API_URL;
-
-  constructor(private client: ApiClient) {}
+  constructor() {}
 
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
-    const response = await fetch(`${this.baseURL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    try {
+      console.log('AuthService: Making login request');
+      const response = await apiClient.post<LoginResponse>('/auth/login', {
         email: credentials.email,
         password: credentials.password,
         twoFactorCode: credentials.twoFactorCode,
-      }),
-    });
+      });
 
-    if (!response.ok) {
-      throw new Error('Login failed');
+      console.log('AuthService: Login response received');
+      return response;
+    } catch (error) {
+      console.error('AuthService: Login error:', error);
+      
+      // Extract meaningful error message
+      let errorMessage = 'Login failed. Please check your credentials.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Unauthorized') || error.message.includes('401')) {
+          errorMessage = 'Invalid email or password. Please try again.';
+        } else if (error.message.includes('Network') || error.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (error.message.includes('Too Many Requests') || error.message.includes('429')) {
+          errorMessage = 'Too many login attempts. Please wait a moment and try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
-
-    return response.json();
   }
 
   async logout(): Promise<void> {
-    await fetch(`${this.baseURL}/auth/logout`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${TokenStorageService.getAccessToken()}`,
-      },
-    });
+    try {
+      await apiClient.post('/auth/logout');
+      TokenStorageService.clearTokens();
+      SessionStorageService.clearUserSession();
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Clear tokens even if API call fails
+      TokenStorageService.clearTokens();
+      SessionStorageService.clearUserSession();
+    }
   }
 
   async refreshToken(refreshToken: string): Promise<TokenResponse> {
-    const response = await fetch(`${this.baseURL}/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refreshToken }),
-    });
-
-    if (!response.ok) {
+    try {
+      const response = await apiClient.post<TokenResponse>('/auth/refresh', { refreshToken });
+      return response;
+    } catch (error) {
+      console.error('Token refresh error:', error);
       throw new Error('Token refresh failed');
     }
-
-    return response.json();
   }
 
   async verify2FA(userId: string, code: string): Promise<LoginResponse> {
-    const response = await fetch(`${this.baseURL}/auth/verify-2fa`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId, code }),
-    });
-
-    if (!response.ok) {
+    try {
+      const response = await apiClient.post<LoginResponse>('/auth/verify-2fa', { userId, code });
+      return response;
+    } catch (error) {
+      console.error('2FA verification error:', error);
       throw new Error('2FA verification failed');
     }
-
-    return response.json();
   }
 
   async setup2FA(userId: string): Promise<{ qrCode: string; secret: string }> {
-    const response = await fetch(`${this.baseURL}/auth/setup-2fa`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${TokenStorageService.getAccessToken()}`,
-      },
-      body: JSON.stringify({ userId }),
-    });
-
-    if (!response.ok) {
+    try {
+      const response = await apiClient.post<{ qrCode: string; secret: string }>('/auth/setup-2fa', { userId });
+      return response;
+    } catch (error) {
+      console.error('2FA setup error:', error);
       throw new Error('2FA setup failed');
     }
-
-    return response.json();
   }
 
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/auth/change-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${TokenStorageService.getAccessToken()}`,
-      },
-      body: JSON.stringify({ currentPassword, newPassword }),
-    });
-
-    if (!response.ok) {
+    try {
+      await apiClient.post('/auth/change-password', { currentPassword, newPassword });
+    } catch (error) {
+      console.error('Password change error:', error);
       throw new Error('Password change failed');
     }
   }
 
   async validateSession(): Promise<User> {
-    const response = await fetch(`${this.baseURL}/auth/validate`, {
-      headers: {
-        Authorization: `Bearer ${TokenStorageService.getAccessToken()}`,
-      },
-    });
-
-    if (!response.ok) {
+    try {
+      const response = await apiClient.get<User>('/auth/validate');
+      return response;
+    } catch (error) {
+      console.error('Session validation error:', error);
       throw new Error('Session validation failed');
     }
-
-    return response.json();
   }
 
   async getActiveSessions(): Promise<Session[]> {
-    const response = await fetch(`${this.baseURL}/auth/sessions`, {
-      headers: {
-        Authorization: `Bearer ${TokenStorageService.getAccessToken()}`,
-      },
-    });
-
-    if (!response.ok) {
+    try {
+      const response = await apiClient.get<Session[]>('/auth/sessions');
+      return response;
+    } catch (error) {
+      console.error('Get sessions error:', error);
       throw new Error('Failed to fetch sessions');
     }
-
-    return response.json();
   }
 
   async terminateSession(sessionId?: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/auth/sessions/${sessionId || ''}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${TokenStorageService.getAccessToken()}`,
-      },
-    });
-
-    if (!response.ok) {
+    try {
+      await apiClient.delete(`/auth/sessions/${sessionId || ''}`);
+    } catch (error) {
+      console.error('Terminate session error:', error);
       throw new Error('Failed to terminate session');
     }
   }

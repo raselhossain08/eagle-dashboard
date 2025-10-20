@@ -85,17 +85,6 @@ export class SignaturesService {
     
     return response.json()
   }
-
-  async getComplianceReport(params: any): Promise<any> {
-    const queryParams = new URLSearchParams(params)
-    const response = await fetch(`${this.baseUrl}/compliance/report?${queryParams}`)
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch compliance report')
-    }
-    
-    return response.json()
-  }
 }
 
 export const signaturesService = new SignaturesService()

@@ -8,7 +8,8 @@ import { TwoFactorForm } from '@/components/auth/two-factor-form';
 import { AuthLayout } from '@/components/auth/auth-layout';
 import { User } from '@/types/auth';
 import { AuthService } from '@/lib/services/auth.service';
-import { ApiClient } from '@/lib/api/api-client';
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
+import { SessionStorageService } from '@/lib/auth/session-storage.service';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,19 +19,25 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   const handleLoginSuccess = (response: any) => {
+    console.log('Login successful:', response);
+    setIsLoading(false);
+    setError('');
     router.push('/dashboard');
   };
 
   const handleRequire2FA = (user: Partial<User>) => {
+    console.log('2FA required for user:', user);
     setPendingUser(user);
     setRequires2FA(true);
     setError('');
+    setIsLoading(false);
   };
 
   const handle2FABack = () => {
     setRequires2FA(false);
     setPendingUser(null);
     setError('');
+    setIsLoading(false);
   };
 
   const handle2FAVerify = async (code: string) => {
@@ -40,13 +47,14 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const authService = new AuthService(new ApiClient());
+      const authService = new AuthService();
       const response = await authService.verify2FA(pendingUser.id, code);
       
       TokenStorageService.setTokens(response.accessToken, response.refreshToken);
       SessionStorageService.setUserSession(response.user);
       router.push('/dashboard');
     } catch (err) {
+      console.error('2FA verification error:', err);
       setError('Invalid verification code. Please try again.');
     } finally {
       setIsLoading(false);

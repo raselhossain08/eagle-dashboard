@@ -1,111 +1,163 @@
-'use client'
+"use client";
 
-import { DashboardShell } from '@/components/dashboard/dashboard-shell'
-import { TimeSeriesChart } from '@/components/charts/time-series-chart'
-import { BarChart } from '@/components/charts/bar-chart'
-import { DateRangePicker } from '@/components/date-range-picker'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Search, Plus, Download } from 'lucide-react'
-import { useEventTrends } from '@/hooks/use-analytics'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { TimeSeriesChart } from "@/components/charts/time-series-chart";
+import { BarChart } from "@/components/charts/bar-chart";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEventTrends } from "@/hooks/use-analytics";
+import { useDashboardStore } from "@/store/dashboard-store";
+import { TrendingUp, Users, MousePointerClick, Clock } from "lucide-react";
 
-// Mock event data
-const eventsData = [
-  { name: 'page_view', value: 12500 },
-  { name: 'button_click', value: 8500 },
-  { name: 'form_submit', value: 3200 },
-  { name: 'purchase', value: 1500 },
-  { name: 'add_to_cart', value: 2800 },
-  { name: 'user_signup', value: 1200 },
-]
+const mockEventsData = [
+  { name: "page_view", value: 45000 },
+  { name: "button_click", value: 23000 },
+  { name: "form_submit", value: 15000 },
+  { name: "product_view", value: 12000 },
+  { name: "add_to_cart", value: 8000 },
+  { name: "purchase", value: 3000 },
+];
 
-const eventTimelineData = [
-  { date: '2024-01-01', page_view: 1200, purchase: 45, add_to_cart: 120 },
-  { date: '2024-01-02', page_view: 1800, purchase: 52, add_to_cart: 150 },
-  { date: '2024-01-03', page_view: 1500, purchase: 48, add_to_cart: 130 },
-  { date: '2024-01-04', page_view: 2200, purchase: 61, add_to_cart: 180 },
-  { date: '2024-01-05', page_view: 1900, purchase: 55, add_to_cart: 160 },
-  { date: '2024-01-06', page_view: 2100, purchase: 67, add_to_cart: 190 },
-  { date: '2024-01-07', page_view: 2400, purchase: 59, add_to_cart: 170 },
-]
+const mockEventTrends = [
+  { date: '2024-01-01', value: 1200, category: 'page_view' },
+  { date: '2024-01-01', value: 600, category: 'button_click' },
+  { date: '2024-01-02', value: 1400, category: 'page_view' },
+  { date: '2024-01-02', value: 700, category: 'button_click' },
+  { date: '2024-01-03', value: 1100, category: 'page_view' },
+  { date: '2024-01-03', value: 550, category: 'button_click' },
+  { date: '2024-01-04', value: 1600, category: 'page_view' },
+  { date: '2024-01-04', value: 800, category: 'button_click' },
+];
+
+const mockConversionEvents = [
+  { date: '2024-01-01', value: 45 },
+  { date: '2024-01-02', value: 52 },
+  { date: '2024-01-03', value: 48 },
+  { date: '2024-01-04', value: 61 },
+  { date: '2024-01-05', value: 55 },
+  { date: '2024-01-06', value: 72 },
+  { date: '2024-01-07', value: 68 },
+];
 
 export default function EventsPage() {
-  const { data: eventTrends, isLoading } = useEventTrends({ groupBy: 'day' })
+  const { dateRange } = useDashboardStore();
+  const { data: eventTrends, isLoading } = useEventTrends({
+    ...dateRange,
+    groupBy: 'day'
+  });
 
   return (
     <DashboardShell
       title="Event Analytics"
-      description="Track and analyze user interactions and custom events"
-      actions={
-        <div className="flex items-center gap-2">
-          <DateRangePicker />
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            New Event
-          </Button>
-        </div>
-      }
+      description="Track and analyze user events and interactions"
     >
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search events..."
-              className="pl-10"
-            />
-          </div>
+      <div className="space-y-6">
+        {/* Event Metrics */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Events</CardTitle>
+              <MousePointerClick className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">95.4K</div>
+              <p className="text-xs text-muted-foreground">
+                +18.2% from last period
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Unique Events</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">24</div>
+              <p className="text-xs text-muted-foreground">
+                +3 new events this week
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">12.4K</div>
+              <p className="text-xs text-muted-foreground">
+                +8.7% from last period
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Avg. Events/User</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">7.7</div>
+              <p className="text-xs text-muted-foreground">
+                +1.2 from last period
+              </p>
+            </CardContent>
+          </Card>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">All Events</Button>
-          <Button variant="outline" size="sm">Custom Events</Button>
-          <Button variant="outline" size="sm">System Events</Button>
+
+        {/* Charts */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <TimeSeriesChart
+            data={mockEventTrends}
+            title="Event Trends Over Time"
+            valueFormatter={(value) => value.toLocaleString()}
+            showLegend={true}
+            isLoading={isLoading}
+          />
+          <BarChart
+            data={mockEventsData}
+            title="Top Events by Volume"
+            valueFormatter={(value) => value.toLocaleString()}
+            orientation="horizontal"
+            isLoading={isLoading}
+          />
         </div>
-      </div>
 
-      {/* Event Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <BarChart
-          data={eventsData}
-          title="Event Distribution"
-          description="Total events by type"
-          orientation="horizontal"
-          isLoading={isLoading}
-        />
-
+        {/* Conversion Events */}
         <TimeSeriesChart
-          data={[]}
-          title="Event Timeline"
-          description="Event trends over time"
-          valueFormatter={(value) => value.toString()}
+          data={mockConversionEvents}
+          title="Conversion Events Trend"
+          valueFormatter={(value) => value.toLocaleString()}
           isLoading={isLoading}
         />
-      </div>
 
-      {/* Event Details */}
-      <div className="grid grid-cols-1 gap-6">
+        {/* Event Details Table */}
         <Card>
           <CardHeader>
             <CardTitle>Event Details</CardTitle>
-            <CardDescription>Detailed breakdown of all tracked events</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {eventsData.map((event) => (
-                <div key={event.name} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium capitalize">{event.name.replace('_', ' ')}</h4>
-                    <p className="text-sm text-muted-foreground">Custom user event</p>
-                  </div>
+              <div className="grid grid-cols-5 gap-4 font-medium text-sm">
+                <div>Event Name</div>
+                <div className="text-right">Count</div>
+                <div className="text-right">Unique Users</div>
+                <div className="text-right">Conversion Rate</div>
+                <div className="text-right">Avg. Value</div>
+              </div>
+              {[
+                { name: "page_view", count: 45000, users: 12400, conversion: 2.1, value: 0 },
+                { name: "button_click", count: 23000, users: 8900, conversion: 8.5, value: 0 },
+                { name: "form_submit", count: 15000, users: 4500, conversion: 15.2, value: 0 },
+                { name: "product_view", count: 12000, users: 6800, conversion: 12.8, value: 45.50 },
+                { name: "add_to_cart", count: 8000, users: 3200, conversion: 25.4, value: 78.30 },
+                { name: "purchase", count: 3000, users: 2800, conversion: 100, value: 156.42 },
+              ].map((event, index) => (
+                <div key={event.name} className="grid grid-cols-5 gap-4 items-center py-2 border-b">
+                  <div className="font-medium capitalize">{event.name.replace('_', ' ')}</div>
+                  <div className="text-right">{event.count.toLocaleString()}</div>
+                  <div className="text-right">{event.users.toLocaleString()}</div>
+                  <div className="text-right">{event.conversion}%</div>
                   <div className="text-right">
-                    <div className="font-bold">{event.value.toLocaleString()}</div>
-                    <div className="text-sm text-muted-foreground">occurrences</div>
+                    {event.value > 0 ? `$${event.value.toFixed(2)}` : '-'}
                   </div>
                 </div>
               ))}
@@ -114,5 +166,5 @@ export default function EventsPage() {
         </Card>
       </div>
     </DashboardShell>
-  )
+  );
 }

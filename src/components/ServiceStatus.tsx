@@ -1,0 +1,65 @@
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react';
+import { ServiceStatus as ServiceStatusType } from '@/types/health';
+
+interface ServiceStatusProps {
+  services: ServiceStatusType[];
+}
+
+const StatusIcon = ({ status }: { status: ServiceStatusType['status'] }) => {
+  switch (status) {
+    case 'up':
+      return <CheckCircle className="h-4 w-4 text-green-500" />;
+    case 'degraded':
+      return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+    case 'down':
+      return <XCircle className="h-4 w-4 text-red-500" />;
+    default:
+      return <Clock className="h-4 w-4 text-gray-500" />;
+  }
+};
+
+const StatusBadge = ({ status }: { status: ServiceStatusType['status'] }) => {
+  const variant = status === 'up' ? 'default' : 
+                  status === 'degraded' ? 'secondary' : 'destructive';
+  
+  return (
+    <Badge variant={variant} className="capitalize text-xs">
+      {status}
+    </Badge>
+  );
+};
+
+export function ServiceStatus({ services }: ServiceStatusProps) {
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CheckCircle className="h-5 w-5 text-blue-500" />
+          Service Status
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {services.map((service, index) => (
+          <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
+            <div className="flex items-center space-x-3">
+              <StatusIcon status={service.status} />
+              <div>
+                <p className="font-medium text-sm capitalize">
+                  {service.name.replace(/([A-Z])/g, ' $1').trim()}
+                </p>
+                {service.responseTime && (
+                  <p className="text-xs text-muted-foreground">
+                    {service.responseTime}ms
+                  </p>
+                )}
+              </div>
+            </div>
+            <StatusBadge status={service.status} />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}

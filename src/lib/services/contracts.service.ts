@@ -7,9 +7,6 @@ import {
   DateRange,
   SigningAnalytics
 } from '@/lib/types/contracts'
-import { securityService } from '@/lib/security.service'
-import { templateEngine } from '@/lib/template-engine'
-import { pdfService } from '@/lib/pdf-service'
 
 export class ContractsService {
   private baseUrl = '/api/contracts'
@@ -37,74 +34,6 @@ export class ContractsService {
     return response.json()
   }
 
-  async createContract(data: CreateContractDto): Promise<Contract> {
-    // Generate content hash for integrity
-    const contentHash = await securityService.generateContentHash(data.title + JSON.stringify(data.variables))
-    
-    const contractData = {
-      ...data,
-      contentHash,
-      status: 'draft' as const,
-      termsVersion: '1.0', // Would come from template
-      privacyVersion: '1.0', // Would come from template
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(contractData),
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to create contract')
-    }
-    
-    return response.json()
-  }
-
-  async generateContractPdf(id: string): Promise<Blob> {
-    // Get contract data
-    const contract = await this.getContractById(id)
-    
-    // In real implementation, get template and customer data
-    const template = { content: contract.content } as any
-    const customer = { name: 'Customer', email: 'customer@example.com' } as any
-    
-    // Generate PDF with security features
-    const pdfBlob = await pdfService.generateContractPdf(contract, template, customer)
-    
-    return pdfBlob
-  }
-
-  async validateContractIntegrity(contractId: string): Promise<{ isValid: boolean; issues: string[] }> {
-    const contract = await this.getContractById(contractId)
-    
-    // Validate content hash
-    const isHashValid = await securityService.validateContentHash(
-      contract.content, 
-      contract.contentHash
-    )
-    
-    const issues: string[] = []
-    if (!isHashValid) {
-      issues.push('Content hash validation failed - document may have been modified')
-    }
-    
-    // Check for expiry
-    if (contract.expiresAt && new Date(contract.expiresAt) < new Date()) {
-      issues.push('Contract has expired')
-    }
-    
-    return {
-      isValid: issues.length === 0,
-      issues
-    }
-  }
-
   async getContractById(id: string): Promise<Contract> {
     const response = await fetch(`${this.baseUrl}/${id}`)
     
@@ -115,34 +44,57 @@ export class ContractsService {
     return response.json()
   }
 
-  async getExpiredContracts(): Promise<Contract[]> {
-    const response = await fetch(`${this.baseUrl}?status=expired`)
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch expired contracts')
-    }
-    
-    const data = await response.json()
-    return data.data
-  }
-
-  async archiveExpiredContracts(): Promise<{ archivedCount: number }> {
-    const response = await fetch(`${this.baseUrl}/archive-expired`, {
-      method: 'POST'
+  async createContract(data: CreateContractDto): Promise<Contract> {
+    const response = await fetch(this.baseUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     })
     
     if (!response.ok) {
-      throw new Error('Failed to archive expired contracts')
+      throw new Error('Failed to create contract')
     }
     
     return response.json()
   }
 
-  async getContractByHash(hash: string): Promise<Contract> {
-    const response = await fetch(`${this.baseUrl}/hash/${hash}`)
+  async sendContract(id: string): Promise<Contract> {
+    const response = await fetch(`${this.baseUrl}/${id}/send`, {
+      method: 'POST',
+    })
     
     if (!response.ok) {
-      throw new Error('Failed to fetch contract by hash')
+      throw new Error('Failed to send contract')
+    }
+    
+    return response.json()
+  }
+
+  async voidContract(id: string, reason: string): Promise<Contract> {
+    const response = await fetch(`${this.baseUrl}/${id}/void`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ reason }),
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to void contract')
+    }
+    
+    return response.json()
+  }
+
+  async markContractAsViewed(id: string): Promise<Contract> {
+    const response = await fetch(`${this.baseUrl}/${id}/viewed`, {
+      method: 'POST',
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to mark contract as viewed')
     }
     
     return response.json()
@@ -151,7 +103,7 @@ export class ContractsService {
   async getContractMetrics(dateRange: DateRange): Promise<ContractMetrics> {
     const queryParams = new URLSearchParams({
       from: dateRange.from.toISOString(),
-      to: dateRange.to.toISOString()
+      to: dateRange.to.toISOString(),
     })
     
     const response = await fetch(`${this.baseUrl}/metrics?${queryParams}`)
@@ -166,7 +118,7 @@ export class ContractsService {
   async getSigningAnalytics(dateRange: DateRange): Promise<SigningAnalytics> {
     const queryParams = new URLSearchParams({
       from: dateRange.from.toISOString(),
-      to: dateRange.to.toISOString()
+      to: dateRange.to.toISOString(),
     })
     
     const response = await fetch(`${this.baseUrl}/analytics/signing?${queryParams}`)
@@ -177,7 +129,33 @@ export class ContractsService {
     
     return response.json()
   }
+
+  async generateContractPdf(id: string): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/${id}/pdf`)
+    
+    if (!response.ok) {
+      throw new Error('Failed to generate PDF')
+    }
+    
+    return response.blob()
+  }
+
+  async previewContract(templateId: string, variables: Record<string, any>): Promise<string> {
+    const response = await fetch(`${this.baseUrl}/preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ templateId, variables }),
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to preview contract')
+    }
+    
+    const data = await response.json()
+    return data.content
+  }
 }
 
 export const contractsService = new ContractsService()
-

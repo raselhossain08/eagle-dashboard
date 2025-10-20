@@ -1,7 +1,99 @@
 'use client'
 
-import { SessionProvider as NextAuthSessionProvider } from 'next-auth/react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { User } from '@/types/auth'
+import { AuthService } from '@/lib/services/auth.service'
+import { TokenStorageService } from '@/lib/auth/token-storage.service'
+import { SessionStorageService } from '@/lib/auth/session-storage.service'
+
+interface SessionContextType {
+  user: User | null
+  loading: boolean
+  login: (email: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+  isAuthenticated: boolean
+}
+
+const SessionContext = createContext<SessionContextType | undefined>(undefined)
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  return <NextAuthSessionProvider>{children}</NextAuthSessionProvider>
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const authService = new AuthService()
+
+  const isAuthenticated = !!user
+
+  useEffect(() => {
+    checkSession()
+  }, [])
+
+  const checkSession = async () => {
+    try {
+      const storedUser = SessionStorageService.getUserSession()
+      const token = TokenStorageService.getAccessToken()
+
+      if (storedUser && token) {
+        // Validate with backend
+        const validatedUser = await authService.validateSession()
+        setUser(validatedUser)
+      }
+    } catch (error) {
+      console.error('Session check failed:', error)
+      // Clear invalid session
+      TokenStorageService.clearTokens()
+      SessionStorageService.clearUserSession()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const login = async (email: string, password: string) => {
+    const response = await authService.login({ 
+      email, 
+      password, 
+      rememberMe: false 
+    })
+    
+    if (response.requiresTwoFactor) {
+      throw new Error('2FA_REQUIRED')
+    }
+    
+    TokenStorageService.setTokens(response.accessToken, response.refreshToken)
+    SessionStorageService.setUserSession(response.user)
+    setUser(response.user)
+  }
+
+  const logout = async () => {
+    try {
+      await authService.logout()
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      setUser(null)
+      TokenStorageService.clearTokens()
+      SessionStorageService.clearUserSession()
+    }
+  }
+
+  const value = {
+    user,
+    loading,
+    login,
+    logout,
+    isAuthenticated
+  }
+
+  return (
+    <SessionContext.Provider value={value}>
+      {children}
+    </SessionContext.Provider>
+  )
+}
+
+export function useSession() {
+  const context = useContext(SessionContext)
+  if (context === undefined) {
+    throw new Error('useSession must be used within a SessionProvider')
+  }
+  return context
 }

@@ -1,67 +1,42 @@
-import { useQuery } from '@tanstack/react-query'
-import { reportsService } from '@/lib/services/reports.service'
-import { useDashboardStore } from '@/store/dashboard-store'
-import { RevenueReportData, CohortData, GoalPerformanceData, DeviceBreakdownData, CohortAnalysisParams } from '@/types'
+import { useQuery } from '@tanstack/react-query';
+import { reportsService, ConversionFunnelParams, CohortAnalysisParams } from '@/lib/api/reports.service';
 
-// Revenue Report Hook
-export const useRevenueReport = () => {
-  const { dateRange } = useDashboardStore()
-  
+export const useConversionFunnel = (params: ConversionFunnelParams) => {
   return useQuery({
-    queryKey: ['reports', 'revenue', dateRange],
-    queryFn: () => reportsService.getRevenueReport(dateRange),
-    staleTime: 5 * 60 * 1000,
-  })
-}
+    queryKey: ['reports', 'conversion-funnel', params],
+    queryFn: () => reportsService.getConversionFunnel(params),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
 
-// Cohort Analysis Hook
-export const useCohortAnalysis = (params: Omit<CohortAnalysisParams, 'startDate' | 'endDate'>) => {
-  const { dateRange } = useDashboardStore()
-  
+export const useRevenueReport = (params: { startDate: Date; endDate: Date }) => {
   return useQuery({
-    queryKey: ['reports', 'cohorts', { ...params, dateRange }],
-    queryFn: () => reportsService.getCohortAnalysis({
-      ...params,
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
-    }),
-    staleTime: 10 * 60 * 1000,
-  })
-}
+    queryKey: ['reports', 'revenue', params],
+    queryFn: () => reportsService.getRevenueReport(params),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+};
 
-// Goal Performance Hook
-export const useGoalPerformance = () => {
-  const { dateRange } = useDashboardStore()
-  
+export const useCohortAnalysis = (params: CohortAnalysisParams) => {
   return useQuery({
-    queryKey: ['reports', 'goals', 'performance', dateRange],
-    queryFn: () => reportsService.getGoalPerformance(dateRange),
-    staleTime: 5 * 60 * 1000,
-  })
-}
+    queryKey: ['reports', 'cohorts', params],
+    queryFn: () => reportsService.getCohortAnalysis(params),
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+};
 
-// Device Breakdown Hook
-export const useDeviceBreakdown = () => {
-  const { dateRange } = useDashboardStore()
-  
+export const useGoalPerformance = (params: { startDate: Date; endDate: Date }) => {
   return useQuery({
-    queryKey: ['reports', 'devices', 'breakdown', dateRange],
-    queryFn: () => reportsService.getDeviceBreakdown(dateRange),
-    staleTime: 10 * 60 * 1000,
-  })
-}
+    queryKey: ['reports', 'goals', params],
+    queryFn: () => reportsService.getGoalPerformance(params),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+};
 
-// Conversion Funnel Hook
-export const useConversionFunnel = (funnelId?: string) => {
-  const { dateRange } = useDashboardStore()
-  
+export const useDeviceBreakdown = (params: { startDate: Date; endDate: Date }) => {
   return useQuery({
-    queryKey: ['reports', 'funnel', dateRange, funnelId],
-    queryFn: () => reportsService.getConversionFunnel({
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
-      funnelId,
-    }),
-    staleTime: 2 * 60 * 1000,
-  })
-}
+    queryKey: ['reports', 'devices', params],
+    queryFn: () => reportsService.getDeviceBreakdown(params),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};

@@ -85,3 +85,12 @@ export const useCleanupOldLogs = () => {
     mutationFn: (retentionDays: number) => auditService.cleanupOldLogs(retentionDays),
   });
 };
+
+// System health metrics hook
+export const useSystemHealthMetrics = (dateRange: DateRange) => {
+  return useQuery({
+    queryKey: ['audit', 'system-health', dateRange],
+    queryFn: () => auditService.getSystemHealthMetrics(dateRange),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};

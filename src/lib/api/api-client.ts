@@ -4,7 +4,7 @@ class ApiClient {
   private defaultHeaders: HeadersInit;
 
   constructor() {
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
     this.defaultHeaders = {
       'Content-Type': 'application/json',
     };
@@ -22,13 +22,13 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const token = await this.getAuthToken();
-    const headers: HeadersInit = {
+    const headers = new Headers({
       ...this.defaultHeaders,
-      ...options.headers,
-    };
+      ...options.headers as HeadersInit,
+    });
 
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers.set('Authorization', `Bearer ${token}`);
     }
 
     const url = `${this.baseURL}${endpoint}`;
@@ -38,9 +38,12 @@ class ApiClient {
     };
 
     try {
+      console.log('ApiClient: Making request to:', url);
       const response = await fetch(url, config);
+      console.log('ApiClient: Response status:', response.status);
 
       if (response.status === 401) {
+        console.log('ApiClient: 401 Unauthorized - clearing tokens');
         // Token expired, redirect to login
         localStorage.removeItem('accessToken');
         window.location.href = '/login';
@@ -48,8 +51,19 @@ class ApiClient {
       }
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        let errorData: any = {};
+        try {
+          errorData = await response.json();
+        } catch (jsonError) {
+          console.warn('Failed to parse error response as JSON:', jsonError);
+        }
+        
+        const errorMessage = errorData.message || 
+                           errorData.error || 
+                           `HTTP error! status: ${response.status}`;
+        
+        console.error('ApiClient: HTTP error:', errorMessage);
+        throw new Error(errorMessage);
       }
 
       // Handle empty responses
@@ -58,8 +72,11 @@ class ApiClient {
         return {} as T;
       }
 
-      return await response.json();
+      const responseData = await response.json();
+      console.log('ApiClient: Response data received');
+      return responseData;
     } catch (error) {
+      console.error('ApiClient: Request failed:', error);
       if (error instanceof Error) {
         throw error;
       }
@@ -101,3 +118,6 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
+// Export the class for backwards compatibility
+export { ApiClient };

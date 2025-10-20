@@ -120,31 +120,6 @@ export class TemplatesService {
     
     return response.json()
   }
-
-  async getTemplateForPlan(planId: string, locale?: string): Promise<ContractTemplate> {
-    const queryParams = new URLSearchParams()
-    if (locale) queryParams.append('locale', locale)
-    
-    const response = await fetch(`${this.baseUrl}/plan/${planId}?${queryParams}`)
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch template for plan')
-    }
-    
-    return response.json()
-  }
-
-  async setDefaultTemplate(id: string): Promise<ContractTemplate> {
-    const response = await fetch(`${this.baseUrl}/${id}/set-default`, {
-      method: 'POST',
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to set default template')
-    }
-    
-    return response.json()
-  }
 }
 
 export const templatesService = new TemplatesService()

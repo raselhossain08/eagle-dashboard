@@ -30,3 +30,13 @@ export const useSignatureAnalytics = (dateRange: DateRange) => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
+
+// Hook for getting signature details
+export const useSignature = (signatureId: string) => {
+  return useQuery({
+    queryKey: ['signatures', signatureId],
+    queryFn: () => signaturesService.getSignatureById(signatureId),
+    enabled: !!signatureId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  })
+}

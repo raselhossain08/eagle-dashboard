@@ -1,4 +1,6 @@
 // lib/auth/token-storage.service.ts
+import { AuthService } from '@/lib/services/auth.service';
+
 export class TokenStorageService {
   private static readonly ACCESS_TOKEN_KEY = 'accessToken';
   private static readonly REFRESH_TOKEN_KEY = 'refreshToken';
@@ -69,7 +71,7 @@ export class TokenStorageService {
         const refreshToken = this.getRefreshToken();
         if (refreshToken) {
           try {
-            const authService = new AuthService(new ApiClient());
+            const authService = new AuthService();
             const tokens = await authService.refreshToken(refreshToken);
             this.setTokens(tokens.accessToken, tokens.refreshToken);
           } catch (error) {
