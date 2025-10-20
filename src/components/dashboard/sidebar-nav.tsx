@@ -38,17 +38,20 @@ const navigationItems = [
     href: "/dashboard/analytics",
     icon: TrendingUp,
     items: [
+      { title: "Analytics", href: "/dashboard/analytics" },
       { title: "Events", href: "/dashboard/analytics/events" },
       { title: "Funnels", href: "/dashboard/analytics/funnels" },
       { title: "Real-time", href: "/dashboard/analytics/real-time" },
       { title: "Reports", href: "/dashboard/analytics/reports", items: [
+        { title: "Reports", href: "/dashboard/analytics/reports" },
         { title: "Revenue", href: "/dashboard/analytics/reports/revenue" },
         { title: "Cohorts", href: "/dashboard/analytics/reports/cohorts" },
         { title: "Goals", href: "/dashboard/analytics/reports/goals" }
       ]},
       { title: "Audience", href: "/dashboard/analytics/audience", items: [
         { title: "Geographic", href: "/dashboard/analytics/audience/geographic" },
-        { title: "Devices", href: "/dashboard/analytics/audience/devices" }
+        { title: "Devices", href: "/dashboard/analytics/audience/devices" },
+        { title: "Audience", href: "/dashboard/analytics/audience" }
       ]}
     ]
   },
@@ -245,6 +248,13 @@ const navigationItems = [
     href: "/dashboard/search",
     icon: Search,
     description: "Advanced search"
+  },
+  {
+    title: "API Docs",
+    href: "http://localhost:5000/api/docs",
+    icon: FileText,
+    description: "Backend API documentation",
+    external: true
   }
 ]
 
@@ -255,6 +265,75 @@ interface NavItemProps {
   onLinkClick?: () => void
 }
 
+interface SubNavItemProps {
+  subItem: { title: string; href: string; items?: { title: string; href: string }[] }
+  pathname: string
+  onLinkClick?: () => void
+}
+
+function SubNavItem({ subItem, pathname, onLinkClick }: SubNavItemProps) {
+  const isSubActive = pathname === subItem.href || 
+    (subItem.items && subItem.items.some(nestedItem => pathname === nestedItem.href))
+  const [isSubExpanded, setIsSubExpanded] = useState(isSubActive)
+  
+  const handleSubClick = (e: React.MouseEvent) => {
+    if (subItem.items) {
+      e.preventDefault()
+      setIsSubExpanded(!isSubExpanded)
+    } else {
+      onLinkClick?.()
+    }
+  }
+  
+  return (
+    <div className="space-y-1">
+      <Link
+        href={subItem.href}
+        onClick={handleSubClick}
+        className={cn(
+          "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent hover:text-accent-foreground",
+          isSubActive
+            ? "bg-accent text-accent-foreground font-medium"
+            : "text-muted-foreground"
+        )}
+      >
+        <span className="flex-1">{subItem.title}</span>
+        {subItem.items && (
+          <ChevronDown 
+            className={cn(
+              "h-3 w-3 transition-transform",
+              isSubExpanded && "rotate-180"
+            )} 
+          />
+        )}
+      </Link>
+      
+      {subItem.items && isSubExpanded && (
+        <div className="ml-4 space-y-1">
+          {subItem.items.map((nestedItem) => {
+            const isNestedActive = pathname === nestedItem.href
+            return (
+              <Link
+                key={nestedItem.href}
+                href={nestedItem.href}
+                onClick={() => onLinkClick?.()}
+                className={cn(
+                  "block rounded-lg px-3 py-1.5 text-xs transition-all hover:bg-accent hover:text-accent-foreground",
+                  isNestedActive
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "text-muted-foreground"
+                )}
+              >
+                {nestedItem.title}
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function NavItem({ item, isActive, pathname, onLinkClick }: NavItemProps) {
   const [isExpanded, setIsExpanded] = useState(isActive)
   const Icon = item.icon
@@ -263,6 +342,11 @@ function NavItem({ item, isActive, pathname, onLinkClick }: NavItemProps) {
     if (item.items) {
       e.preventDefault()
       setIsExpanded(!isExpanded)
+    } else if ((item as any).external) {
+      // Handle external links
+      e.preventDefault()
+      window.open(item.href, '_blank', 'noopener,noreferrer')
+      onLinkClick?.()
     } else {
       onLinkClick?.()
     }
@@ -294,68 +378,14 @@ function NavItem({ item, isActive, pathname, onLinkClick }: NavItemProps) {
       
       {item.items && isExpanded && (
         <div className="ml-6 space-y-1">
-          {item.items.map((subItem) => {
-            const isSubActive = pathname === subItem.href || 
-              (subItem.items && subItem.items.some(nestedItem => pathname === nestedItem.href))
-            const [isSubExpanded, setIsSubExpanded] = useState(isSubActive)
-            
-            const handleSubClick = (e: React.MouseEvent) => {
-              if (subItem.items) {
-                e.preventDefault()
-                setIsSubExpanded(!isSubExpanded)
-              } else {
-                onLinkClick?.()
-              }
-            }
-            
-            return (
-              <div key={subItem.href} className="space-y-1">
-                <Link
-                  href={subItem.href}
-                  onClick={handleSubClick}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent hover:text-accent-foreground",
-                    isSubActive
-                      ? "bg-accent text-accent-foreground font-medium"
-                      : "text-muted-foreground"
-                  )}
-                >
-                  <span className="flex-1">{subItem.title}</span>
-                  {subItem.items && (
-                    <ChevronDown 
-                      className={cn(
-                        "h-3 w-3 transition-transform",
-                        isSubExpanded && "rotate-180"
-                      )} 
-                    />
-                  )}
-                </Link>
-                
-                {subItem.items && isSubExpanded && (
-                  <div className="ml-4 space-y-1">
-                    {subItem.items.map((nestedItem) => {
-                      const isNestedActive = pathname === nestedItem.href
-                      return (
-                        <Link
-                          key={nestedItem.href}
-                          href={nestedItem.href}
-                          onClick={() => onLinkClick?.()}
-                          className={cn(
-                            "block rounded-lg px-3 py-1.5 text-xs transition-all hover:bg-accent hover:text-accent-foreground",
-                            isNestedActive
-                              ? "bg-accent text-accent-foreground font-medium"
-                              : "text-muted-foreground"
-                          )}
-                        >
-                          {nestedItem.title}
-                        </Link>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+          {item.items.map((subItem) => (
+            <SubNavItem
+              key={subItem.href}
+              subItem={subItem}
+              pathname={pathname}
+              onLinkClick={onLinkClick}
+            />
+          ))}
         </div>
       )}
     </div>

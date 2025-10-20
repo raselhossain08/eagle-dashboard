@@ -9,18 +9,51 @@ import { Clock, LogIn, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
+import { SessionStorageService } from '@/lib/auth/session-storage.service';
+import { authApi } from '@/lib/api/auth';
 
 export default function SessionExpiredPage() {
   const router = useRouter();
   const { clearUser } = useAuthStore();
 
-  const handleRefresh = () => {
-    // Clear any stale data
-    clearUser();
-    localStorage.removeItem('pending2FAUser');
-    sessionStorage.clear();
-    
-    router.push('/login');
+  const handleRefresh = async () => {
+    try {
+      // Get current token for backend validation and logout
+      const accessToken = TokenStorageService.getAccessToken();
+      
+      // Optional: Validate token with backend before cleanup
+      if (accessToken) {
+        try {
+          await authApi.validateToken(accessToken);
+          console.log('Token is still valid, performing clean logout');
+        } catch (error) {
+          console.log('Token is invalid/expired, performing cleanup');
+        }
+      }
+      
+      // Clear all client-side data
+      clearUser();
+      TokenStorageService.clearTokens();
+      SessionStorageService.clearUserSession();
+      localStorage.removeItem('pending2FAUser');
+      sessionStorage.clear();
+      
+      // Call backend logout endpoint if token exists
+      if (accessToken) {
+        try {
+          await authApi.logout(accessToken);
+          console.log('Backend logout successful');
+        } catch (error) {
+          // Logout API might fail if token is expired - continue with client cleanup
+          console.warn('Backend logout failed, continuing with client cleanup:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error during session cleanup:', error);
+    } finally {
+      router.push('/login');
+    }
   };
 
   return (

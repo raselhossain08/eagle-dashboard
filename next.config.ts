@@ -28,7 +28,7 @@ const nextConfig: NextConfig = {
 
   // ✅ Mark Prisma as external for faster server builds
   experimental: {
-    serverExternalPackages: ['@prisma/client'],
+    serverComponentsExternalPackages: ['@prisma/client'],
   },
 
   // ✅ Recommended for Prisma in App Router

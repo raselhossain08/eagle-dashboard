@@ -5,24 +5,41 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart } from "@/components/charts/bar-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { useDashboardStore } from "@/store/dashboard-store";
-
-const mockRevenueData = [
-  { name: 'Jan', value: 45000 },
-  { name: 'Feb', value: 52000 },
-  { name: 'Mar', value: 48000 },
-  { name: 'Apr', value: 61000 },
-  { name: 'May', value: 55000 },
-  { name: 'Jun', value: 72000 },
-];
-
-const mockDeviceData = [
-  { name: "Desktop", value: 55, color: "#3b82f6" },
-  { name: "Mobile", value: 35, color: "#ef4444" },
-  { name: "Tablet", value: 10, color: "#10b981" },
-];
+import { useRevenueReport, useDeviceBreakdown } from "@/hooks/use-reports";
+import { useMemo } from "react";
 
 export default function ReportsPage() {
   const { dateRange } = useDashboardStore();
+
+  // Fetch real backend data
+  const { data: revenueData, isLoading: revenueLoading } = useRevenueReport(dateRange);
+  const { data: deviceData, isLoading: deviceLoading } = useDeviceBreakdown(dateRange);
+
+  // Transform revenue trends for the chart
+  const revenueChartData = useMemo(() => {
+    if (revenueData?.trends && revenueData.trends.length > 0) {
+      return revenueData.trends.map(item => ({
+        name: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        value: item.revenue
+      }));
+    }
+    return [];
+  }, [revenueData]);
+
+  // Transform device data for the donut chart
+  const deviceChartData = useMemo(() => {
+    if (deviceData && deviceData.length > 0) {
+      const total = deviceData.reduce((sum, device) => sum + device.sessions, 0);
+      const colors = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6"];
+      
+      return deviceData.map((device, index) => ({
+        name: device.device.charAt(0).toUpperCase() + device.device.slice(1),
+        value: Math.round((device.sessions / total) * 100),
+        color: colors[index % colors.length]
+      }));
+    }
+    return [];
+  }, [deviceData]);
 
   return (
     <DashboardShell
@@ -36,9 +53,11 @@ export default function ReportsPage() {
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$324,000</div>
+              <div className="text-2xl font-bold">
+                {revenueData ? `$${revenueData.totalRevenue.toLocaleString()}` : '$0'}
+              </div>
               <p className="text-xs text-muted-foreground">
-                +20.1% from last month
+                {revenueLoading ? 'Loading...' : 'Current period'}
               </p>
             </CardContent>
           </Card>
@@ -47,20 +66,24 @@ export default function ReportsPage() {
               <CardTitle className="text-sm font-medium">AOV</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$156.42</div>
+              <div className="text-2xl font-bold">
+                {revenueData ? `$${revenueData.averageOrderValue.toFixed(2)}` : '$0.00'}
+              </div>
               <p className="text-xs text-muted-foreground">
-                +5.2% from last month
+                Average order value
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Conversions</CardTitle>
+              <CardTitle className="text-sm font-medium">Transactions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">2,071</div>
+              <div className="text-2xl font-bold">
+                {revenueData ? revenueData.transactions.toLocaleString() : '0'}
+              </div>
               <p className="text-xs text-muted-foreground">
-                +12.3% from last month
+                Total transactions
               </p>
             </CardContent>
           </Card>
@@ -68,14 +91,16 @@ export default function ReportsPage() {
 
         <div className="grid gap-6 md:grid-cols-2">
           <BarChart
-            data={mockRevenueData}
-            title="Monthly Revenue"
-            valueFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+            data={revenueChartData}
+            title="Revenue Trends"
+            valueFormatter={(value) => `$${(value / 1000).toFixed(1)}k`}
+            isLoading={revenueLoading}
           />
           <DonutChart
-            data={mockDeviceData}
+            data={deviceChartData}
             title="Device Distribution"
             valueFormatter={(value) => `${value}%`}
+            isLoading={deviceLoading}
           />
         </div>
       </div>

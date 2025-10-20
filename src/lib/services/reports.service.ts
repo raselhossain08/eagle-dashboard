@@ -46,6 +46,20 @@ export interface DeviceBreakdownData {
   avgSessionDuration: number
 }
 
+export interface OSBreakdownData {
+  os: string
+  sessions: number
+  bounceRate: number
+  avgDuration: number
+}
+
+export interface BrowserBreakdownData {
+  browser: string
+  sessions: number
+  bounceRate: number
+  avgDuration: number
+}
+
 export class ReportsService {
   constructor(private client: typeof apiClient) {}
 
@@ -67,6 +81,14 @@ export class ReportsService {
 
   async getDeviceBreakdown(params: any): Promise<DeviceBreakdownData[]> {
     return this.client.get<DeviceBreakdownData[]>('/analytics/reports/devices/breakdown', params)
+  }
+
+  async getOperatingSystemBreakdown(params: any): Promise<OSBreakdownData[]> {
+    return this.client.get<OSBreakdownData[]>('/analytics/reports/devices/os-breakdown', params)
+  }
+
+  async getBrowserBreakdown(params: any): Promise<BrowserBreakdownData[]> {
+    return this.client.get<BrowserBreakdownData[]>('/analytics/reports/devices/browser-breakdown', params)
   }
 }
 

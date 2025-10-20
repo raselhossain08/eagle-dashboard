@@ -61,12 +61,7 @@ export default function InvoicesPage() {
 
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar Navigation */}
-      <div className="hidden w-64 lg:block border-r">
-        <div className="p-6">
-          <BillingNavigation />
-        </div>
-      </div>
+
 
       {/* Main Content */}
       <BillingDashboardShell

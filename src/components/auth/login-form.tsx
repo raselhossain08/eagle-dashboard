@@ -112,10 +112,7 @@ export function LoginForm({ onLogin, onRequire2FA, isLoading: parentLoading, err
   };
 
   return (
-    <form 
-      className="w-full space-y-6 login-form"
-
-    >
+    <div className="w-full space-y-6 login-form">
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
@@ -181,6 +178,6 @@ export function LoginForm({ onLogin, onRequire2FA, isLoading: parentLoading, err
           </a>
         </div>
       </div>
-    </form>
+    </div>
   );
 }

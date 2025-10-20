@@ -9,8 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AuthLayout } from '@/components/auth/auth-layout';
-import { ArrowLeft, Mail } from 'lucide-react';
+import { ArrowLeft, Mail, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { authApi, AuthApiError } from '@/lib/api/auth';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -21,22 +22,34 @@ type ForgotPasswordForm = z.infer<typeof forgotPasswordSchema>;
 export default function ForgotPasswordPage() {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
+    getValues,
   } = useForm<ForgotPasswordForm>({
     resolver: zodResolver(forgotPasswordSchema),
   });
 
   const onSubmit = async (data: ForgotPasswordForm) => {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    console.log('Password reset requested for:', data.email);
-    setIsSubmitted(true);
-    setIsLoading(false);
+    setError(null);
+    
+    try {
+      await authApi.forgotPassword({ email: data.email });
+      setIsSubmitted(true);
+    } catch (err) {
+      if (err instanceof AuthApiError) {
+        setError(err.message);
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
+      console.error('Forgot password error:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSubmitted) {
@@ -52,7 +65,7 @@ export default function ForgotPasswordPage() {
             </div>
             <CardTitle>Check Your Email</CardTitle>
             <CardDescription>
-              If an account exists with this email, you will receive a password reset link shortly.
+              If an account exists with the email {getValues('email')}, you will receive a password reset link shortly.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -64,7 +77,10 @@ export default function ForgotPasswordPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => setIsSubmitted(false)}
+                onClick={() => {
+                  setIsSubmitted(false);
+                  setError(null);
+                }}
               >
                 Try Again
               </Button>
@@ -94,6 +110,13 @@ export default function ForgotPasswordPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                <AlertCircle className="h-4 w-4" />
+                <span>{error}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
                 Email Address

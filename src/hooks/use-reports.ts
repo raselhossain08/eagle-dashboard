@@ -40,3 +40,27 @@ export const useDeviceBreakdown = (params: { startDate: Date; endDate: Date }) =
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
+
+export const useOperatingSystemBreakdown = (params: { startDate: Date; endDate: Date }) => {
+  return useQuery({
+    queryKey: ['reports', 'os-breakdown', params],
+    queryFn: () => reportsService.getOperatingSystemBreakdown(params),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+export const useBrowserBreakdown = (params: { startDate: Date; endDate: Date }) => {
+  return useQuery({
+    queryKey: ['reports', 'browser-breakdown', params],
+    queryFn: () => reportsService.getBrowserBreakdown(params),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+export const useProductRevenueBreakdown = (params: { startDate: Date; endDate: Date }) => {
+  return useQuery({
+    queryKey: ['reports', 'product-revenue', params],
+    queryFn: () => reportsService.getProductRevenueBreakdown(params),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+};

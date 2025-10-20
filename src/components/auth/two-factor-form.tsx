@@ -70,7 +70,8 @@ export function TwoFactorForm({
         )}
 
         <Button 
-          onClick={handleVerify} 
+          type="button"
+          onClick={handleVerify}
           disabled={isLoading || code.length !== 6}
           className="w-full"
         >

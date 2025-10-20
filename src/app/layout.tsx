@@ -103,7 +103,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
               <div className="relative">
-                <div className="fixed top-4 right-4 z-50">
+                <div className="fixed bottom-2 right-4 z-50">
                   <HealthCheck />
                 </div>
                 {children}

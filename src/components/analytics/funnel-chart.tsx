@@ -27,7 +27,7 @@ export function FunnelChart({ data, isLoading = false }: FunnelChartProps) {
     );
   }
 
-  const maxCount = Math.max(...data.map(item => item.count));
+  const maxCount = Math.max(...data.map(item => item.count ?? 0));
 
   return (
     <Card>
@@ -37,23 +37,23 @@ export function FunnelChart({ data, isLoading = false }: FunnelChartProps) {
       <CardContent>
         <div className="space-y-4">
           {data.map((step, index) => (
-            <div key={step.step} className="flex items-center justify-between p-4 border rounded-lg">
+            <div key={`funnel-step-${index}-${step.step}`} className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex-1">
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-medium">{step.step}</span>
                   <span className="text-sm text-muted-foreground">
-                    {step.count.toLocaleString()} ({step.conversionRate}%)
+                    {(step.count ?? 0).toLocaleString()} ({(step.conversionRate ?? 0).toFixed(1)}%)
                   </span>
                 </div>
                 <div className="w-full bg-secondary rounded-full h-2">
                   <div
                     className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${(step.count / maxCount) * 100}%` }}
+                    style={{ width: `${((step.count ?? 0) / maxCount) * 100}%` }}
                   />
                 </div>
                 {index < data.length - 1 && (
                   <div className="text-xs text-muted-foreground mt-1 text-right">
-                    Drop-off: {step.dropOff}%
+                    Drop-off: {(step.dropOff ?? 0).toFixed(1)}%
                   </div>
                 )}
               </div>

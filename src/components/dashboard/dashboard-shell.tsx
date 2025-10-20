@@ -21,12 +21,10 @@ export function DashboardShell({
   className 
 }: DashboardShellProps) {
   return (
-    <div className="flex h-screen bg-background">
-      <SidebarNav />
-      <div className="flex-1 flex flex-col overflow-hidden ml-64">
-        <Header />
-        <main className="flex-1 overflow-auto">
-          <div className="container mx-auto p-6">
+    <div >
+   <main className="">
+          <div className="  p-6">
+         
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
               <div className="mb-4 sm:mb-0">
@@ -52,7 +50,6 @@ export function DashboardShell({
             </div>
           </div>
         </main>
-      </div>
     </div>
   )
 }

@@ -36,17 +36,13 @@ export interface ChannelPerformanceData {
   sessions: number
   users: number
   bounceRate: number
-  conversionRate: number
-  revenue: number
 }
 
 export interface GeographicData {
   country: string
   region: string
-  city: string
   sessions: number
   users: number
-  newUsers: number
 }
 
 export interface FunnelStep {

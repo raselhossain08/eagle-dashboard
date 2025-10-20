@@ -65,7 +65,6 @@ export function BarChart({
                 <Bar
                   key={category}
                   dataKey="value"
-                  data={data.filter(item => item.category === category)}
                   name={category}
                   fill={colors[index % colors.length]}
                 />

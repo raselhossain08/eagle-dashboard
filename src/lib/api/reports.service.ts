@@ -27,9 +27,8 @@ export interface RevenueReportData {
 }
 
 export interface CohortAnalysisParams {
-  startDate: Date;
-  endDate: Date;
-  period: 'day' | 'week' | 'month';
+  type?: 'weekly' | 'monthly';
+  periods?: number;
 }
 
 export interface CohortData {
@@ -59,6 +58,20 @@ export interface DeviceBreakdownData {
   conversionRate: number;
 }
 
+export interface OSBreakdownData {
+  os: string;
+  sessions: number;
+  bounceRate: number;
+  avgDuration: number;
+}
+
+export interface BrowserBreakdownData {
+  browser: string;
+  sessions: number;
+  bounceRate: number;
+  avgDuration: number;
+}
+
 export class ReportsService {
   async getConversionFunnel(params: ConversionFunnelParams): Promise<ConversionFunnelData[]> {
     return apiClient.get('/analytics/reports/funnel', {
@@ -75,11 +88,17 @@ export class ReportsService {
     });
   }
 
-  async getCohortAnalysis(params: CohortAnalysisParams): Promise<CohortData[]> {
-    return apiClient.get('/analytics/reports/cohorts', {
+  async getProductRevenueBreakdown(params: { startDate: Date; endDate: Date }) {
+    return apiClient.get('/analytics/reports/revenue/products', {
       startDate: params.startDate.toISOString(),
       endDate: params.endDate.toISOString(),
-      period: params.period,
+    });
+  }
+
+  async getCohortAnalysis(params: CohortAnalysisParams): Promise<CohortData[]> {
+    return apiClient.get('/analytics/reports/cohorts', {
+      type: params.type || 'weekly',
+      periods: params.periods || 12,
     });
   }
 
@@ -92,6 +111,20 @@ export class ReportsService {
 
   async getDeviceBreakdown(params: { startDate: Date; endDate: Date }): Promise<DeviceBreakdownData[]> {
     return apiClient.get('/analytics/reports/devices/breakdown', {
+      startDate: params.startDate.toISOString(),
+      endDate: params.endDate.toISOString(),
+    });
+  }
+
+  async getOperatingSystemBreakdown(params: { startDate: Date; endDate: Date }): Promise<OSBreakdownData[]> {
+    return apiClient.get('/analytics/reports/devices/os-breakdown', {
+      startDate: params.startDate.toISOString(),
+      endDate: params.endDate.toISOString(),
+    });
+  }
+
+  async getBrowserBreakdown(params: { startDate: Date; endDate: Date }): Promise<BrowserBreakdownData[]> {
+    return apiClient.get('/analytics/reports/devices/browser-breakdown', {
       startDate: params.startDate.toISOString(),
       endDate: params.endDate.toISOString(),
     });

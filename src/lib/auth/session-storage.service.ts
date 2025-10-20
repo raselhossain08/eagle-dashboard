@@ -1,5 +1,6 @@
 // lib/auth/session-storage.service.ts
 import { User } from '@/types/auth';
+import { CookiesService } from './cookies.service';
 
 export class SessionStorageService {
   private static readonly USER_SESSION_KEY = 'userSession';
@@ -11,13 +12,14 @@ export class SessionStorageService {
         user,
         timestamp: Date.now(),
       };
-      sessionStorage.setItem(this.USER_SESSION_KEY, JSON.stringify(sessionData));
+      // Use session cookie for user session (expires when browser closes)
+      CookiesService.setSessionToken(this.USER_SESSION_KEY, JSON.stringify(sessionData));
     }
   }
 
   static getUserSession(): User | null {
     if (typeof window !== 'undefined') {
-      const sessionData = sessionStorage.getItem(this.USER_SESSION_KEY);
+      const sessionData = CookiesService.getCookie(this.USER_SESSION_KEY);
       if (sessionData) {
         try {
           const { user, timestamp } = JSON.parse(sessionData);
@@ -35,7 +37,7 @@ export class SessionStorageService {
 
   static clearUserSession(): void {
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem(this.USER_SESSION_KEY);
+      CookiesService.removeCookie(this.USER_SESSION_KEY);
     }
   }
 
@@ -46,7 +48,7 @@ export class SessionStorageService {
 
   static getSessionExpiry(): Date | null {
     if (typeof window !== 'undefined') {
-      const sessionData = sessionStorage.getItem(this.USER_SESSION_KEY);
+      const sessionData = CookiesService.getCookie(this.USER_SESSION_KEY);
       if (sessionData) {
         try {
           const { timestamp } = JSON.parse(sessionData);
@@ -61,13 +63,14 @@ export class SessionStorageService {
 
   static setRememberMe(remember: boolean): void {
     if (typeof window !== 'undefined') {
-      localStorage.setItem(this.REMEMBER_ME_KEY, remember.toString());
+      // Use long-lived cookie for remember me preference (30 days)
+      CookiesService.setSecureToken(this.REMEMBER_ME_KEY, remember.toString(), 30 * 24 * 60 * 60); // 30 days in seconds
     }
   }
 
   static getRememberMe(): boolean {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(this.REMEMBER_ME_KEY) === 'true';
+      return CookiesService.getCookie(this.REMEMBER_ME_KEY) === 'true';
     }
     return false;
   }

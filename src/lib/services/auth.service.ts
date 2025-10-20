@@ -121,25 +121,3 @@ export class AuthService {
     }
   }
 }
-
-// API Client
-export class ApiClient {
-  async request(url: string, options: RequestInit = {}) {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-
-    if (response.status === 401) {
-      // Handle token refresh or logout
-      TokenStorageService.clearTokens();
-      SessionStorageService.clearUserSession();
-      window.location.href = '/login';
-    }
-
-    return response;
-  }
-}

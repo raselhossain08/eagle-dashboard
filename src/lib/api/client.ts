@@ -1,4 +1,5 @@
-import { toast } from '@/components/ui/sonner'
+import { toast } from 'sonner'
+import { AuthCookieService } from '@/lib/auth/cookie-service'
 
 export class HttpError extends Error {
   constructor(
@@ -20,14 +21,23 @@ export class NetworkError extends Error {
 
 export class ApiClient {
   private baseURL: string
-  private token?: string
 
   constructor(baseURL: string) {
     this.baseURL = baseURL
   }
 
-  setToken(token: string) {
-    this.token = token
+  private getAuthToken(): string | null {
+    // First try cookies
+    let token = AuthCookieService.getAccessToken()
+    
+    // If no token in cookies, try localStorage as fallback
+    if (!token && typeof window !== 'undefined') {
+      token = localStorage.getItem('eagle_access_token') || 
+              localStorage.getItem('accessToken') ||
+              localStorage.getItem('token')
+    }
+    
+    return token
   }
 
   private async request<T>(
@@ -35,11 +45,21 @@ export class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`
+    const token = this.getAuthToken()
+    
+    console.log('🌐 API Request:', {
+      url,
+      method: options.method || 'GET',
+      hasToken: !!token,
+      tokenLength: token?.length || 0,
+      tokenPreview: token ? `${token.substring(0, 30)}...` : 'No token'
+    });
     
     const config: RequestInit = {
+      credentials: 'include', // Include cookies in requests
       headers: {
         'Content-Type': 'application/json',
-        ...(this.token && { Authorization: `Bearer ${this.token}` }),
+        ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
       ...options,
@@ -48,8 +68,17 @@ export class ApiClient {
     try {
       const response = await fetch(url, config)
       
+      console.log('📡 API Response:', {
+        url,
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
+        
+        console.error('❌ API Error Data:', errorData);
         
         if (response.status === 401) {
           // Handle unauthorized access
@@ -68,7 +97,9 @@ export class ApiClient {
         )
       }
 
-      return await response.json()
+      const responseData = await response.json()
+      console.log('✅ API Success:', { url, dataKeys: Object.keys(responseData || {}) });
+      return responseData
     } catch (error) {
       if (error instanceof HttpError) {
         // Show user-friendly error messages
@@ -88,39 +119,19 @@ export class ApiClient {
     if (error instanceof HttpError) {
       switch (error.status) {
         case 401:
-          toast({
-            title: 'Authentication Error',
-            description: 'Please sign in again.',
-            variant: 'destructive',
-          })
+          toast.error('Authentication required. Please sign in again.')
           break
         case 429:
-          toast({
-            title: 'Rate Limit Exceeded',
-            description: 'Please wait before making more requests.',
-            variant: 'destructive',
-          })
+          toast.error('Rate limit exceeded. Please wait before making more requests.')
           break
         case 500:
-          toast({
-            title: 'Server Error',
-            description: 'Please try again later.',
-            variant: 'destructive',
-          })
+          toast.error('Server error. Please try again later.')
           break
         default:
-          toast({
-            title: 'API Error',
-            description: error.message,
-            variant: 'destructive',
-          })
+          toast.error(`API Error: ${error.message}`)
       }
     } else {
-      toast({
-        title: 'Network Error',
-        description: 'Please check your connection and try again.',
-        variant: 'destructive',
-      })
+      toast.error('Network error. Please check your connection and try again.')
     }
   }
 
@@ -171,4 +182,4 @@ export class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient(process.env.EAGLE_ANALYTICS_API_URL || 'http://localhost:8000/api')
+export const apiClient = new ApiClient(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1')

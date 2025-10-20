@@ -1,4 +1,6 @@
 // lib/api/api-client.ts
+import { CookiesService } from '@/lib/auth/cookies.service';
+
 class ApiClient {
   private baseURL: string;
   private defaultHeaders: HeadersInit;
@@ -12,7 +14,7 @@ class ApiClient {
 
   private async getAuthToken(): Promise<string | null> {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('accessToken');
+      return CookiesService.getCookie('accessToken');
     }
     return null;
   }
@@ -43,11 +45,30 @@ class ApiClient {
       console.log('ApiClient: Response status:', response.status);
 
       if (response.status === 401) {
-        console.log('ApiClient: 401 Unauthorized - clearing tokens');
-        // Token expired, redirect to login
-        localStorage.removeItem('accessToken');
-        window.location.href = '/login';
-        throw new Error('Authentication required');
+        console.log('ApiClient: 401 Unauthorized');
+        
+        // Only redirect to login if this is not a login request
+        // and if the user has a token (meaning they were logged in)
+        if (!endpoint.includes('/auth/login') && token) {
+          console.log('ApiClient: Token expired - clearing tokens and redirecting');
+          CookiesService.removeCookie('accessToken');
+          CookiesService.removeCookie('refreshToken');
+          window.location.href = '/login';
+        }
+        
+        // For login requests or when no token exists, just throw an error
+        let errorData: any = {};
+        try {
+          errorData = await response.json();
+        } catch (jsonError) {
+          console.warn('Failed to parse error response as JSON:', jsonError);
+        }
+        
+        const errorMessage = errorData.message || 
+                           errorData.error || 
+                           'Authentication failed';
+        
+        throw new Error(errorMessage);
       }
 
       if (!response.ok) {

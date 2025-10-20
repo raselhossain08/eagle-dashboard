@@ -4,51 +4,128 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { TimeSeriesChart } from "@/components/charts/time-series-chart";
 import { BarChart } from "@/components/charts/bar-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useEventTrends } from "@/hooks/use-analytics";
+import { useEventTrends, useOverviewStats, useEventStatistics, useEventDetails } from "@/hooks/use-analytics";
 import { useDashboardStore } from "@/store/dashboard-store";
 import { TrendingUp, Users, MousePointerClick, Clock } from "lucide-react";
-
-const mockEventsData = [
-  { name: "page_view", value: 45000 },
-  { name: "button_click", value: 23000 },
-  { name: "form_submit", value: 15000 },
-  { name: "product_view", value: 12000 },
-  { name: "add_to_cart", value: 8000 },
-  { name: "purchase", value: 3000 },
-];
-
-const mockEventTrends = [
-  { date: '2024-01-01', value: 1200, category: 'page_view' },
-  { date: '2024-01-01', value: 600, category: 'button_click' },
-  { date: '2024-01-02', value: 1400, category: 'page_view' },
-  { date: '2024-01-02', value: 700, category: 'button_click' },
-  { date: '2024-01-03', value: 1100, category: 'page_view' },
-  { date: '2024-01-03', value: 550, category: 'button_click' },
-  { date: '2024-01-04', value: 1600, category: 'page_view' },
-  { date: '2024-01-04', value: 800, category: 'button_click' },
-];
-
-const mockConversionEvents = [
-  { date: '2024-01-01', value: 45 },
-  { date: '2024-01-02', value: 52 },
-  { date: '2024-01-03', value: 48 },
-  { date: '2024-01-04', value: 61 },
-  { date: '2024-01-05', value: 55 },
-  { date: '2024-01-06', value: 72 },
-  { date: '2024-01-07', value: 68 },
-];
+import { useMemo } from "react";
 
 export default function EventsPage() {
   const { dateRange } = useDashboardStore();
-  const { data: eventTrends, isLoading } = useEventTrends({
+  
+  // API Hooks
+  const { 
+    data: eventTrends, 
+    isLoading: trendsLoading, 
+    error: trendsError 
+  } = useEventTrends({
     ...dateRange,
     groupBy: 'day'
   });
+  
+  const { 
+    data: overviewStats, 
+    isLoading: overviewLoading,
+    error: overviewError 
+  } = useOverviewStats(dateRange);
+  
+  const { 
+    data: eventStatistics, 
+    isLoading: statisticsLoading,
+    error: statisticsError 
+  } = useEventStatistics(dateRange);
+  
+  const { 
+    data: eventDetails, 
+    isLoading: detailsLoading,
+    error: detailsError 
+  } = useEventDetails({ ...dateRange, limit: 10 });
+
+  // Transform event trends data for charts
+  const transformedEventTrends = useMemo(() => {
+    if (eventTrends && eventTrends.length > 0) {
+      return eventTrends.map(item => ({
+        date: item.date,
+        value: item.count,
+        category: item.event
+      }));
+    }
+    return [];
+  }, [eventTrends]);
+
+  // Calculate event summary data from statistics with fallback
+  const eventSummaryData = useMemo(() => {
+    // Primary: use statistics data
+    if (eventStatistics && eventStatistics.length > 0) {
+      return eventStatistics.map(stat => ({ 
+        name: stat.event, 
+        value: stat.count 
+      })).slice(0, 10);
+    }
+    
+    // Fallback: aggregate trends data if statistics fails
+    if (statisticsError && eventTrends && eventTrends.length > 0) {
+      const eventCounts = eventTrends.reduce((acc, item) => {
+        acc[item.event] = (acc[item.event] || 0) + item.count;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      return Object.entries(eventCounts)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10);
+    }
+    
+    return [];
+  }, [eventStatistics, statisticsError, eventTrends]);
+
+  // Calculate metrics from real data with fallbacks
+  const metrics = useMemo(() => {
+    // If statistics API fails, fallback to trends data for basic metrics
+    if (eventStatistics && overviewStats) {
+      const totalEvents = eventStatistics.reduce((sum, stat) => sum + stat.count, 0);
+      const uniqueEvents = eventStatistics.length;
+      const activeUsers = overviewStats.totalUsers || 0;
+      const avgEventsPerUser = activeUsers > 0 
+        ? (totalEvents / activeUsers).toFixed(1)
+        : '0.0';
+      
+      return {
+        totalEvents,
+        uniqueEvents,
+        activeUsers,
+        avgEventsPerUser
+      };
+    }
+    
+    // Fallback: use trends data if statistics fails but trends works
+    if (statisticsError && eventTrends && overviewStats) {
+      const totalEvents = eventTrends.reduce((sum, trend) => sum + trend.count, 0);
+      const uniqueEvents = [...new Set(eventTrends.map(trend => trend.event))].length;
+      const activeUsers = overviewStats.totalUsers || 0;
+      const avgEventsPerUser = activeUsers > 0 
+        ? (totalEvents / activeUsers).toFixed(1)
+        : '0.0';
+        
+      return {
+        totalEvents,
+        uniqueEvents,
+        activeUsers,
+        avgEventsPerUser
+      };
+    }
+    
+    return {
+      totalEvents: 0,
+      uniqueEvents: 0,
+      activeUsers: 0,
+      avgEventsPerUser: '0.0'
+    };
+  }, [eventStatistics, overviewStats, statisticsError, eventTrends]);
 
   return (
     <DashboardShell
       title="Event Analytics"
-      description="Track and analyze user events and interactions"
+      description="Track and analyze user events and interactions with real backend data"
     >
       <div className="space-y-6">
         {/* Event Metrics */}
@@ -59,9 +136,17 @@ export default function EventsPage() {
               <MousePointerClick className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">95.4K</div>
+              {statisticsLoading || overviewLoading ? (
+                <div className="text-2xl font-bold h-8 bg-muted rounded animate-pulse" />
+              ) : (
+                <div className="text-2xl font-bold">
+                  {metrics.totalEvents > 1000 
+                    ? `${(metrics.totalEvents / 1000).toFixed(1)}K` 
+                    : metrics.totalEvents.toLocaleString()}
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
-                +18.2% from last period
+                Real-time data
               </p>
             </CardContent>
           </Card>
@@ -71,9 +156,13 @@ export default function EventsPage() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">24</div>
+              {statisticsLoading ? (
+                <div className="text-2xl font-bold h-8 bg-muted rounded animate-pulse" />
+              ) : (
+                <div className="text-2xl font-bold">{metrics.uniqueEvents}</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                +3 new events this week
+                Event types tracked
               </p>
             </CardContent>
           </Card>
@@ -83,9 +172,17 @@ export default function EventsPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12.4K</div>
+              {overviewLoading ? (
+                <div className="text-2xl font-bold h-8 bg-muted rounded animate-pulse" />
+              ) : (
+                <div className="text-2xl font-bold">
+                  {metrics.activeUsers > 1000 
+                    ? `${(metrics.activeUsers / 1000).toFixed(1)}K` 
+                    : metrics.activeUsers.toLocaleString()}
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
-                +8.7% from last period
+                Current period
               </p>
             </CardContent>
           </Card>
@@ -95,9 +192,13 @@ export default function EventsPage() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">7.7</div>
+              {statisticsLoading || overviewLoading ? (
+                <div className="text-2xl font-bold h-8 bg-muted rounded animate-pulse" />
+              ) : (
+                <div className="text-2xl font-bold">{metrics.avgEventsPerUser}</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                +1.2 from last period
+                Calculated from data
               </p>
             </CardContent>
           </Card>
@@ -105,29 +206,55 @@ export default function EventsPage() {
 
         {/* Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <TimeSeriesChart
-            data={mockEventTrends}
-            title="Event Trends Over Time"
-            valueFormatter={(value) => value.toLocaleString()}
-            showLegend={true}
-            isLoading={isLoading}
-          />
-          <BarChart
-            data={mockEventsData}
-            title="Top Events by Volume"
-            valueFormatter={(value) => value.toLocaleString()}
-            orientation="horizontal"
-            isLoading={isLoading}
-          />
+          <div>
+            {trendsError ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Event Trends Over Time</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      Failed to load event trends. Please check your connection and try again.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <TimeSeriesChart
+                data={transformedEventTrends}
+                title="Event Trends Over Time"
+                valueFormatter={(value) => value.toLocaleString()}
+                showLegend={true}
+                isLoading={trendsLoading}
+              />
+            )}
+          </div>
+          <div>
+            {statisticsError ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Events by Volume</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      Failed to load event statistics. Please check your connection and try again.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <BarChart
+                data={eventSummaryData}
+                title="Top Events by Volume"
+                valueFormatter={(value) => value.toLocaleString()}
+                orientation="horizontal"
+                isLoading={statisticsLoading}
+              />
+            )}
+          </div>
         </div>
-
-        {/* Conversion Events */}
-        <TimeSeriesChart
-          data={mockConversionEvents}
-          title="Conversion Events Trend"
-          valueFormatter={(value) => value.toLocaleString()}
-          isLoading={isLoading}
-        />
 
         {/* Event Details Table */}
         <Card>
@@ -135,33 +262,107 @@ export default function EventsPage() {
             <CardTitle>Event Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="grid grid-cols-5 gap-4 font-medium text-sm">
-                <div>Event Name</div>
-                <div className="text-right">Count</div>
-                <div className="text-right">Unique Users</div>
-                <div className="text-right">Conversion Rate</div>
-                <div className="text-right">Avg. Value</div>
+            {detailsError ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  Failed to load event details. Please check your connection and try again.
+                </p>
               </div>
-              {[
-                { name: "page_view", count: 45000, users: 12400, conversion: 2.1, value: 0 },
-                { name: "button_click", count: 23000, users: 8900, conversion: 8.5, value: 0 },
-                { name: "form_submit", count: 15000, users: 4500, conversion: 15.2, value: 0 },
-                { name: "product_view", count: 12000, users: 6800, conversion: 12.8, value: 45.50 },
-                { name: "add_to_cart", count: 8000, users: 3200, conversion: 25.4, value: 78.30 },
-                { name: "purchase", count: 3000, users: 2800, conversion: 100, value: 156.42 },
-              ].map((event, index) => (
-                <div key={event.name} className="grid grid-cols-5 gap-4 items-center py-2 border-b">
-                  <div className="font-medium capitalize">{event.name.replace('_', ' ')}</div>
-                  <div className="text-right">{event.count.toLocaleString()}</div>
-                  <div className="text-right">{event.users.toLocaleString()}</div>
-                  <div className="text-right">{event.conversion}%</div>
-                  <div className="text-right">
-                    {event.value > 0 ? `$${event.value.toFixed(2)}` : '-'}
-                  </div>
+            ) : detailsLoading ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-5 gap-4 font-medium text-sm">
+                  <div>Event Name</div>
+                  <div className="text-right">Count</div>
+                  <div className="text-right">Unique Users</div>
+                  <div className="text-right">Conversion Rate</div>
+                  <div className="text-right">Avg. Value</div>
                 </div>
-              ))}
-            </div>
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="grid grid-cols-5 gap-4 items-center py-2 border-b">
+                    <div className="h-4 bg-muted rounded animate-pulse" />
+                    <div className="h-4 bg-muted rounded animate-pulse" />
+                    <div className="h-4 bg-muted rounded animate-pulse" />
+                    <div className="h-4 bg-muted rounded animate-pulse" />
+                    <div className="h-4 bg-muted rounded animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : eventDetails && eventDetails.length > 0 ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-5 gap-4 font-medium text-sm">
+                  <div>Event Name</div>
+                  <div className="text-right">Count</div>
+                  <div className="text-right">Unique Users</div>
+                  <div className="text-right">Conversion Rate</div>
+                  <div className="text-right">Avg. Value</div>
+                </div>
+                {eventDetails.slice(0, 10).map((event, index) => (
+                  <div key={`${event.event}-${index}`} className="grid grid-cols-5 gap-4 items-center py-2 border-b hover:bg-muted/50">
+                    <div className="font-medium capitalize">
+                      {event.event.replace(/_/g, ' ')}
+                    </div>
+                    <div className="text-right font-semibold">
+                      {event.count.toLocaleString()}
+                    </div>
+                    <div className="text-right">
+                      {event.uniqueUsers.toLocaleString()}
+                    </div>
+                    <div className="text-right">
+                      <span className={event.conversionRate > 10 ? "text-green-600" : event.conversionRate > 5 ? "text-orange-600" : "text-red-600"}>
+                        {event.conversionRate.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      {event.avgValue > 0 ? `$${event.avgValue.toFixed(2)}` : '-'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : detailsError && eventStatistics && eventStatistics.length > 0 ? (
+              // Fallback: show basic statistics if details API fails
+              <div className="space-y-4">
+                <div className="grid grid-cols-5 gap-4 font-medium text-sm">
+                  <div>Event Name</div>
+                  <div className="text-right">Count</div>
+                  <div className="text-right">Unique Users</div>
+                  <div className="text-right">Conversion Rate</div>
+                  <div className="text-right">Avg. Value</div>
+                </div>
+                {eventStatistics.slice(0, 10).map((event, index) => (
+                  <div key={`${event.event}-${index}`} className="grid grid-cols-5 gap-4 items-center py-2 border-b hover:bg-muted/50">
+                    <div className="font-medium capitalize">
+                      {event.event.replace(/_/g, ' ')}
+                    </div>
+                    <div className="text-right font-semibold">
+                      {event.count.toLocaleString()}
+                    </div>
+                    <div className="text-right">
+                      {event.uniqueUsers.toLocaleString()}
+                    </div>
+                    <div className="text-right">
+                      <span className={event.conversionRate > 10 ? "text-green-600" : event.conversionRate > 5 ? "text-orange-600" : "text-red-600"}>
+                        {event.conversionRate.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      {event.avgValue > 0 ? `$${event.avgValue.toFixed(2)}` : '-'}
+                    </div>
+                  </div>
+                ))}
+                <div className="text-xs text-muted-foreground text-center py-2">
+                  ⚠️ Showing basic statistics (detailed view unavailable)
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  No event data available for the selected date range.
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Events will appear here once tracking data is available.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

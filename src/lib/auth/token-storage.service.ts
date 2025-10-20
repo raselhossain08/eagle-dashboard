@@ -1,5 +1,6 @@
 // lib/auth/token-storage.service.ts
 import { AuthService } from '@/lib/services/auth.service';
+import { CookiesService } from './cookies.service';
 
 export class TokenStorageService {
   private static readonly ACCESS_TOKEN_KEY = 'accessToken';
@@ -8,30 +9,34 @@ export class TokenStorageService {
 
   static setTokens(accessToken: string, refreshToken: string): void {
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem(this.ACCESS_TOKEN_KEY, accessToken);
-      localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
+      // Use session cookie for access token (expires when browser closes)
+      CookiesService.setSessionToken(this.ACCESS_TOKEN_KEY, accessToken);
+      
+      // Use long-lived secure cookie for refresh token (7 days)
+      CookiesService.setSecureToken(this.REFRESH_TOKEN_KEY, refreshToken, 7 * 24 * 60 * 60); // 7 days in seconds
+      
       this.scheduleTokenRefresh(accessToken);
     }
   }
 
   static getAccessToken(): string | null {
     if (typeof window !== 'undefined') {
-      return sessionStorage.getItem(this.ACCESS_TOKEN_KEY);
+      return CookiesService.getCookie(this.ACCESS_TOKEN_KEY);
     }
     return null;
   }
 
   static getRefreshToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(this.REFRESH_TOKEN_KEY);
+      return CookiesService.getCookie(this.REFRESH_TOKEN_KEY);
     }
     return null;
   }
 
   static clearTokens(): void {
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem(this.ACCESS_TOKEN_KEY);
-      localStorage.removeItem(this.REFRESH_TOKEN_KEY);
+      CookiesService.removeCookie(this.ACCESS_TOKEN_KEY);
+      CookiesService.removeCookie(this.REFRESH_TOKEN_KEY);
       this.cancelTokenRefresh();
     }
   }
