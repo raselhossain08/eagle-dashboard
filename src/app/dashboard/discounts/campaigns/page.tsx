@@ -1,48 +1,71 @@
 // app/dashboard/discounts/campaigns/page.tsx
 'use client';
 
+import { useState } from 'react';
 import { DiscountsDashboardShell } from '@/components/discounts/discounts-dashboard-shell';
 import { CampaignsOverview } from '@/components/discounts/campaigns-overview';
 import { CampaignsTable } from '@/components/discounts/campaigns-table';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
-
-// Mock data
-const mockCampaigns = [
-  {
-    id: '1',
-    name: 'Summer Sale 2024',
-    description: 'Annual summer promotion',
-    type: 'promotional' as const,
-    startDate: new Date('2024-06-01'),
-    endDate: new Date('2024-08-31'),
-    isActive: true,
-    discountIds: ['1', '2'],
-    channels: ['email', 'social'],
-    targetAudience: ['new_customers', 'existing_customers'],
-    budget: 50000,
-    revenueGoal: 200000,
-    conversionGoal: 1000,
-    utmSource: 'summer_sale_2024',
-    totalRedemptions: 456,
-    totalRevenue: 187000,
-    totalDiscountAmount: 28700,
-    createdAt: new Date('2024-05-01'),
-    updatedAt: new Date('2024-07-20')
-  }
-];
-
-const mockOverviewData = {
-  totalCampaigns: 12,
-  activeCampaigns: 8,
-  totalBudget: 150000,
-  budgetSpent: 89000,
-  averageROI: 3.2,
-  topPerformingCampaign: 'Summer Sale 2024'
-};
+import { useCampaigns, useCampaignsOverview, useArchiveCampaign } from '@/hooks/use-campaigns';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Campaign } from '@/types/discounts';
 
 export default function CampaignsPage() {
+  const router = useRouter();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filters, setFilters] = useState<{
+    isActive?: boolean;
+    type?: string;
+  }>({});
+
+  // Fetch real data
+  const { 
+    data: campaignsData, 
+    isLoading: campaignsLoading, 
+    error: campaignsError 
+  } = useCampaigns({
+    page: currentPage,
+    limit: 10,
+    ...filters
+  });
+
+  const { 
+    data: overviewData, 
+    isLoading: overviewLoading, 
+    error: overviewError 
+  } = useCampaignsOverview();
+
+  const archiveCampaign = useArchiveCampaign();
+
+  const handleFiltersChange = (newFilters: typeof filters) => {
+    setFilters(newFilters);
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const handleEdit = (campaign: Campaign) => {
+    router.push(`/dashboard/discounts/campaigns/${campaign.id}/edit`);
+  };
+
+  const handleArchive = async (campaignId: string) => {
+    try {
+      await archiveCampaign.mutateAsync(campaignId);
+      toast.success('Campaign archived successfully');
+    } catch (error) {
+      toast.error('Failed to archive campaign');
+      console.error('Archive failed:', error);
+    }
+  };
+
+  const handleViewPerformance = (campaignId: string) => {
+    router.push(`/dashboard/discounts/campaigns/${campaignId}`);
+  };
+
   const actions = (
     <Button size="sm" asChild>
       <Link href="/dashboard/discounts/campaigns/new">
@@ -63,20 +86,85 @@ export default function CampaignsPage() {
         { label: 'Campaigns' }
       ]}
     >
-      <CampaignsOverview data={mockOverviewData} />
+      {/* Error States */}
+      {(campaignsError || overviewError) && (
+        <Alert className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {campaignsError ? 
+              `Failed to load campaigns: ${campaignsError.message}` :
+              `Failed to load overview: ${overviewError?.message}`
+            }
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Overview Section */}
+      {overviewLoading ? (
+        <div className="mb-6">
+          <Skeleton className="h-32 w-full" />
+        </div>
+      ) : overviewData ? (
+        <CampaignsOverview data={overviewData} />
+      ) : null}
+
+      {/* Campaigns Table */}
       <CampaignsTable
-        data={mockCampaigns}
+        data={campaignsData?.campaigns || []}
         pagination={{
-          pageIndex: 0,
+          pageIndex: currentPage - 1,
           pageSize: 10,
-          totalCount: mockCampaigns.length
+          totalCount: campaignsData?.total || 0
         }}
-        filters={{}}
-        onFiltersChange={() => {}}
-        onEdit={() => {}}
-        onArchive={() => {}}
-        onViewPerformance={() => {}}
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
+        onEdit={handleEdit}
+        onArchive={handleArchive}
+        onViewPerformance={handleViewPerformance}
+        isLoading={campaignsLoading}
       />
+
+      {/* Pagination */}
+      {campaignsData && campaignsData.totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            Showing {((currentPage - 1) * 10) + 1} to {Math.min(currentPage * 10, campaignsData.total)} of {campaignsData.total} campaigns
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(currentPage - 1)}
+              disabled={currentPage <= 1}
+            >
+              Previous
+            </Button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, campaignsData.totalPages) }, (_, i) => {
+                const pageNum = i + 1;
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(pageNum)}
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(currentPage + 1)}
+              disabled={currentPage >= campaignsData.totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
     </DiscountsDashboardShell>
   );
 }

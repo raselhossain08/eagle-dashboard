@@ -152,3 +152,14 @@ export const usePreviewTemplate = () => {
       notificationsService.previewTemplate(id, variables),
   });
 };
+
+export const useDeleteTemplate = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (id: string) => notificationsService.deleteTemplate(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+    },
+  });
+};

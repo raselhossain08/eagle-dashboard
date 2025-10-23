@@ -33,6 +33,7 @@ interface FilesGridViewProps {
   onFileDelete: (fileId: string) => void;
   onFileDownload: (fileId: string) => void;
   onFileRename: (fileId: string, newName: string) => void;
+  onFilePreview?: (file: FileItem) => void;
   selectedFiles: string[];
   viewMode: 'grid' | 'list';
   isLoading?: boolean;
@@ -44,6 +45,7 @@ export function FilesGridView({
   onFileDelete,
   onFileDownload,
   onFileRename,
+  onFilePreview,
   selectedFiles,
   viewMode,
   isLoading = false
@@ -169,7 +171,13 @@ export function FilesGridView({
             </div>
 
             {/* File Icon/Thumbnail */}
-            <div className="flex justify-center py-2">
+            <div 
+              className="flex justify-center py-2 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFilePreview?.(file);
+              }}
+            >
               {file.thumbnailUrl ? (
                 <img
                   src={file.thumbnailUrl}

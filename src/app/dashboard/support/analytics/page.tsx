@@ -18,38 +18,113 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { Download, TrendingUp, Users, Clock, MessageSquare } from 'lucide-react';
-
-const responseTimeData = [
-  { name: 'Mon', time: 15 },
-  { name: 'Tue', time: 12 },
-  { name: 'Wed', time: 18 },
-  { name: 'Thu', time: 14 },
-  { name: 'Fri', time: 16 },
-  { name: 'Sat', time: 20 },
-  { name: 'Sun', time: 22 }
-];
-
-const ticketVolumeData = [
-  { name: 'Jan', tickets: 45 },
-  { name: 'Feb', tickets: 52 },
-  { name: 'Mar', tickets: 48 },
-  { name: 'Apr', tickets: 61 },
-  { name: 'May', tickets: 55 },
-  { name: 'Jun', tickets: 58 }
-];
-
-const categoryData = [
-  { name: 'Technical', value: 35 },
-  { name: 'Billing', value: 25 },
-  { name: 'Account', value: 20 },
-  { name: 'General', value: 15 },
-  { name: 'Fraud', value: 5 }
-];
+import { Download, TrendingUp, Users, Clock, MessageSquare, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { supportService } from '@/lib/api/support';
+import { toast } from 'sonner';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export default function AnalyticsPage() {
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [responseTimeData, setResponseTimeData] = useState<any[]>([]);
+  const [volumeData, setVolumeData] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, []);
+
+  const fetchAnalyticsData = async () => {
+    try {
+      setLoading(true);
+      const endDate = new Date().toISOString();
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      const [analyticsRes, responseRes, volumeRes, categoryRes] = await Promise.all([
+        supportService.getSupportAnalytics({ startDate, endDate }),
+        supportService.getResponseTimeAnalytics(7),
+        supportService.getTicketVolumeAnalytics(6),
+        supportService.getCategoryAnalytics({ startDate, endDate })
+      ]);
+
+      setAnalytics(analyticsRes);
+      
+      // Format response time data
+      setResponseTimeData(responseRes.map((item: any) => ({
+        name: new Date(item.date).toLocaleDateString('en', { weekday: 'short' }),
+        time: item.avgResponseTime
+      })));
+
+      // Format volume data
+      setVolumeData(volumeRes.map((item: any) => ({
+        name: new Date(item.month).toLocaleDateString('en', { month: 'short' }),
+        tickets: item.tickets
+      })));
+
+      // Format category data
+      setCategoryData(categoryRes.map((item: any) => ({
+        name: item.category.charAt(0).toUpperCase() + item.category.slice(1),
+        value: item.count
+      })));
+
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error);
+      toast.error('Failed to load analytics data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportReport = async () => {
+    try {
+      const endDate = new Date().toISOString();
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      
+      const report = await supportService.generateReport('weekly-summary', { startDate, endDate });
+      
+      // Create and download the report
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `support-analytics-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success('Analytics report exported successfully');
+    } catch (error) {
+      console.error('Failed to export report:', error);
+      toast.error('Failed to export report');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!analytics) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-muted-foreground">Failed to load analytics data</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -59,7 +134,7 @@ export default function AnalyticsPage() {
             Comprehensive insights into support performance and metrics
           </p>
         </div>
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleExportReport}>
           <Download className="w-4 h-4 mr-2" />
           Export Report
         </Button>
@@ -72,9 +147,9 @@ export default function AnalyticsPage() {
             <Clock className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">16m</div>
+            <div className="text-2xl font-bold">{analytics.overview.avgResponseTime}m</div>
             <p className="text-xs text-muted-foreground">
-              <TrendingUp className="w-3 h-3 inline text-green-500" /> -12% from last week
+              <TrendingUp className="w-3 h-3 inline text-green-500" /> Target: 20m
             </p>
           </CardContent>
         </Card>
@@ -85,9 +160,9 @@ export default function AnalyticsPage() {
             <TrendingUp className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">94%</div>
+            <div className="text-2xl font-bold">{Math.round(analytics.overview.resolutionRate)}%</div>
             <p className="text-xs text-muted-foreground">
-              +5% from last month
+              {analytics.overview.resolvedTickets} of {analytics.overview.totalTickets} resolved
             </p>
           </CardContent>
         </Card>
@@ -98,9 +173,9 @@ export default function AnalyticsPage() {
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">4.7/5</div>
+            <div className="text-2xl font-bold">{analytics.overview.customerSatisfaction}/5</div>
             <p className="text-xs text-muted-foreground">
-              Based on 128 reviews
+              Based on recent feedback
             </p>
           </CardContent>
         </Card>
@@ -111,9 +186,9 @@ export default function AnalyticsPage() {
             <MessageSquare className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">23</div>
+            <div className="text-2xl font-bold">{analytics.overview.activeTickets}</div>
             <p className="text-xs text-muted-foreground">
-              5 requiring follow-up
+              {analytics.overview.totalTickets} total tickets
             </p>
           </CardContent>
         </Card>
@@ -163,7 +238,7 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={ticketVolumeData}>
+                <BarChart data={volumeData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis />
@@ -192,7 +267,7 @@ export default function AnalyticsPage() {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"

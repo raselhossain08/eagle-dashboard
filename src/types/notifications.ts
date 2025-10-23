@@ -17,11 +17,17 @@ export interface EmailLog {
   id: string;
   to: string;
   subject: string;
-  status: 'sent' | 'delivered' | 'failed' | 'opened' | 'clicked';
+  status: 'pending' | 'sent' | 'delivered' | 'failed' | 'opened' | 'clicked' | 'bounced' | 'scheduled';
   templateId?: string;
   sentAt: string;
   openedAt?: string;
+  clickedAt?: string;
+  deliveredAt?: string;
+  scheduledAt?: string;
   error?: string;
+  errorMessage?: string;
+  retryCount?: number;
+  variables?: Record<string, any>;
 }
 
 export interface Template {
@@ -33,6 +39,10 @@ export interface Template {
   createdAt: string;
   updatedAt: string;
   usageCount: number;
+  type?: string;
+  isActive?: boolean;
+  sentCount?: number;
+  lastUsed?: string;
 }
 
 export interface EmailStats {
@@ -41,6 +51,9 @@ export interface EmailStats {
   failed: number;
   openRate: number;
   clickRate: number;
+  deliveryRate: number;
+  bounceRate: number;
+  topTemplates?: Array<{ template: string; sentCount: number }>;
 }
 
 export interface NotificationParams {
@@ -88,9 +101,10 @@ export interface BulkNotificationDto {
 export interface SendEmailDto {
   to: string[];
   subject: string;
+  content: string;
   templateId?: string;
-  content?: string;
   variables?: Record<string, any>;
+  scheduledAt?: string;
 }
 
 export interface CreateTemplateDto {
@@ -98,6 +112,14 @@ export interface CreateTemplateDto {
   subject: string;
   content: string;
   variables: string[];
+  type?: string;
+  textContent?: string;
+  isActive?: boolean;
 }
 
 export interface UpdateTemplateDto extends Partial<CreateTemplateDto> {}
+
+export interface SendEmailResponse {
+  sent: number;
+  logs: EmailLog[];
+}

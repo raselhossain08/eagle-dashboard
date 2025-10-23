@@ -27,6 +27,9 @@ export function middleware(request: NextRequest) {
   }
 
   const token = request.cookies.get('accessToken')?.value || 
+                request.cookies.get('eagle_access_token')?.value ||
+                request.cookies.get('access_token')?.value ||
+                request.cookies.get('token')?.value ||
                 request.headers.get('authorization')?.replace('Bearer ', '');
   
   const { pathname } = request.nextUrl;

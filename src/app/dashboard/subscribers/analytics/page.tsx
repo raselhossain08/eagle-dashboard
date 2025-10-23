@@ -1,6 +1,7 @@
-// app/dashboard/subscribers/analytics/page.tsx (Updated)
+// app/dashboard/subscribers/analytics/page.tsx (Real Data Integration)
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,18 +17,58 @@ import { SubscriberGrowthChart } from '@/components/analytics/SubscriberGrowthCh
 import { RevenueChart } from '@/components/analytics/RevenueChart';
 import { ChurnRateChart } from '@/components/analytics/ChurnRateChart';
 import { LTVChart } from '@/components/analytics/LTVChart';
-
-const analyticsData = {
-  totalSubscribers: 2847,
-  activeSubscriptions: 2451,
-  monthlyGrowth: 5.2,
-  churnRate: 2.1,
-  averageLtv: 1247,
-  mrr: 125847,
-  arr: 1510164
-};
+import { subscribersService } from '@/lib/api/subscribers';
 
 export default function AnalyticsDashboard() {
+  const { data: analyticsData, isLoading, error } = useQuery({
+    queryKey: ['subscriber-analytics'],
+    queryFn: () => subscribersService.getSubscriberAnalytics(),
+  });
+
+  const { data: growthData } = useQuery({
+    queryKey: ['subscriber-growth'],
+    queryFn: () => subscribersService.getSubscriberGrowth(30),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Subscriber Analytics</h1>
+            <p className="text-muted-foreground">Loading analytics data...</p>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="space-y-0 pb-2">
+                <div className="h-4 bg-muted animate-pulse rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 bg-muted animate-pulse rounded mb-2" />
+                <div className="h-3 bg-muted animate-pulse rounded w-2/3" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-600 dark:text-red-400">Failed to load analytics data</p>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -67,22 +108,26 @@ export default function AnalyticsDashboard() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{analyticsData.totalSubscribers.toLocaleString()}</div>
+                <div className="text-2xl font-bold">
+                  {analyticsData?.totalSubscribers?.toLocaleString() || '0'}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  +12% from last month
+                  +{analyticsData?.newSubscribersLast30Days || 0} in last 30 days
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Monthly Growth</CardTitle>
+                <CardTitle className="text-sm font-medium">Active Subscribers</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">+{analyticsData.monthlyGrowth}%</div>
+                <div className="text-2xl font-bold">
+                  {analyticsData?.activeSubscribers?.toLocaleString() || '0'}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  +124 new subscribers
+                  {((analyticsData?.activeSubscribers / analyticsData?.totalSubscribers) * 100).toFixed(1)}% of total
                 </p>
               </CardContent>
             </Card>
@@ -93,9 +138,11 @@ export default function AnalyticsDashboard() {
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{analyticsData.churnRate}%</div>
+                <div className="text-2xl font-bold">
+                  {analyticsData?.churnRate?.toFixed(1) || '0'}%
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  -0.3% from last month
+                  Monthly churn rate
                 </p>
               </CardContent>
             </Card>
@@ -106,9 +153,11 @@ export default function AnalyticsDashboard() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${analyticsData.averageLtv.toLocaleString()}</div>
+                <div className="text-2xl font-bold">
+                  ${analyticsData?.averageLifetimeValue?.toLocaleString() || '0'}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  +2.1% from last month
+                  Average lifetime value
                 </p>
               </CardContent>
             </Card>
@@ -122,37 +171,79 @@ export default function AnalyticsDashboard() {
                 <CardDescription>Monthly subscriber acquisition trends</CardDescription>
               </CardHeader>
               <CardContent>
-                <SubscriberGrowthChart />
+                <SubscriberGrowthChart data={growthData} />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Revenue Trends</CardTitle>
-                <CardDescription>Monthly recurring revenue and growth</CardDescription>
+                <CardTitle>Activity Breakdown</CardTitle>
+                <CardDescription>Subscriber activity types distribution</CardDescription>
               </CardHeader>
               <CardContent>
-                <RevenueChart />
+                {analyticsData?.activityData && (
+                  <div className="space-y-2">
+                    {analyticsData.activityData.map((activity: any, index: number) => (
+                      <div key={index} className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">{activity._id}</span>
+                        <span className="text-sm font-medium">{activity.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Churn Rate</CardTitle>
-                <CardDescription>Monthly churn rate and lost subscribers</CardDescription>
+                <CardTitle>Subscription Breakdown</CardTitle>
+                <CardDescription>Subscription status distribution</CardDescription>
               </CardHeader>
               <CardContent>
-                <ChurnRateChart />
+                {analyticsData?.subscriptionBreakdown && (
+                  <div className="space-y-2">
+                    {analyticsData.subscriptionBreakdown.map((sub: any, index: number) => (
+                      <div key={index} className="flex justify-between">
+                        <span className="text-sm text-muted-foreground capitalize">{sub._id}</span>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">{sub.count}</div>
+                          <div className="text-xs text-muted-foreground">
+                            ${sub.totalRevenue?.toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Lifetime Value</CardTitle>
-                <CardDescription>Customer LTV and average order value</CardDescription>
+                <CardTitle>Key Metrics</CardTitle>
+                <CardDescription>Additional performance indicators</CardDescription>
               </CardHeader>
               <CardContent>
-                <LTVChart />
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Conversion Rate</span>
+                    <span className="text-sm font-medium">
+                      {analyticsData?.conversionRate?.toFixed(1) || '0'}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">New (7 days)</span>
+                    <span className="text-sm font-medium">
+                      {analyticsData?.newSubscribersLast7Days || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">New (30 days)</span>
+                    <span className="text-sm font-medium">
+                      {analyticsData?.newSubscribersLast30Days || 0}
+                    </span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -167,7 +258,7 @@ export default function AnalyticsDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SubscriberGrowthChart />
+              <SubscriberGrowthChart data={growthData} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -181,7 +272,14 @@ export default function AnalyticsDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ChurnRateChart />
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  Churn Rate: {analyticsData?.churnRate?.toFixed(1) || '0'}%
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Detailed churn analysis charts will be implemented here
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -195,7 +293,14 @@ export default function AnalyticsDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <LTVChart />
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  Average LTV: ${analyticsData?.averageLifetimeValue?.toLocaleString() || '0'}
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Detailed LTV analysis charts will be implemented here
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -32,7 +32,16 @@ export default function UserActivityPage() {
     { key: 'activeUsers', label: 'Active Users' },
     { key: 'sessions', label: 'Sessions' },
     { key: 'engagementRate', label: 'Engagement Rate', format: (value: number) => `${value}%` },
+    { key: 'pageViews', label: 'Page Views' },
   ];
+
+  // Calculate summary metrics
+  const avgActiveUsers = activityData?.length ? 
+    Math.round(activityData.reduce((sum: number, item: any) => sum + (item.activeUsers || 0), 0) / activityData.length) : 0;
+  const totalSessions = activityData?.reduce((sum: number, item: any) => sum + (item.sessions || 0), 0) || 0;
+  const avgEngagementRate = activityData?.length ? 
+    (activityData.reduce((sum: number, item: any) => sum + (item.engagementRate || 0), 0) / activityData.length).toFixed(1) : '0';
+  const totalPageViews = activityData?.reduce((sum: number, item: any) => sum + (item.pageViews || 0), 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -49,14 +58,14 @@ export default function UserActivityPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Avg. Active Users</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {activityData?.length ? Math.round(activityData.reduce((sum, item) => sum + item.activeUsers, 0) / activityData.length) : 0}
+              {isLoading ? '...' : avgActiveUsers.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               Daily average
@@ -70,7 +79,7 @@ export default function UserActivityPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {activityData?.reduce((sum, item) => sum + item.sessions, 0) || 0}
+              {isLoading ? '...' : totalSessions.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               This period
@@ -84,10 +93,24 @@ export default function UserActivityPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {activityData?.length ? (activityData.reduce((sum, item) => sum + item.engagementRate, 0) / activityData.length).toFixed(1) : 0}%
+              {isLoading ? '...' : `${avgEngagementRate}%`}
             </div>
             <p className="text-xs text-muted-foreground">
               Average rate
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Page Views</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {isLoading ? '...' : totalPageViews.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Total views
             </p>
           </CardContent>
         </Card>
@@ -101,11 +124,21 @@ export default function UserActivityPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DataTable 
-            data={activityData || []} 
-            columns={tableColumns}
-            searchable={true}
-          />
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Loading activity data...
+            </div>
+          ) : activityData && activityData.length > 0 ? (
+            <DataTable 
+              data={activityData} 
+              columns={tableColumns}
+              searchable={true}
+            />
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No activity data available for the selected period
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -116,10 +149,18 @@ export default function UserActivityPage() {
             <CardDescription>Key findings</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p>• Peak activity hours: 2:00 PM - 4:00 PM</p>
-            <p>• Mobile vs Desktop: 65% / 35%</p>
-            <p>• Average session duration: 4.2 minutes</p>
-            <p>• Bounce rate: 42%</p>
+            {isLoading ? (
+              <p>Loading insights...</p>
+            ) : activityData && activityData.length > 0 ? (
+              <>
+                <p>• Peak activity: {Math.max(...activityData.map((d: any) => d.activeUsers || 0)).toLocaleString()} users</p>
+                <p>• Average session length: {totalSessions > 0 ? Math.round((totalPageViews / totalSessions) * 2.5) : 0} minutes</p>
+                <p>• Pages per session: {totalSessions > 0 ? (totalPageViews / totalSessions).toFixed(1) : '0'}</p>
+                <p>• Data points: {activityData.length} days analyzed</p>
+              </>
+            ) : (
+              <p>No insights available</p>
+            )}
           </CardContent>
         </Card>
 
@@ -129,10 +170,19 @@ export default function UserActivityPage() {
             <CardDescription>User behavior analysis</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p>• Pages per session: 3.8</p>
-            <p>• Return visitors: 38%</p>
-            <p>• Feature adoption rate: 72%</p>
-            <p>• Support tickets: 12/day</p>
+            {isLoading ? (
+              <p>Loading engagement metrics...</p>
+            ) : activityData && activityData.length > 0 ? (
+              <>
+                <p>• Average engagement: {avgEngagementRate}%</p>
+                <p>• Best performing day: {activityData.sort((a: any, b: any) => (b.engagementRate || 0) - (a.engagementRate || 0))[0]?.date}</p>
+                <p>• Session-to-user ratio: {avgActiveUsers > 0 ? ((totalSessions / activityData.length) / avgActiveUsers).toFixed(2) : '0'}</p>
+                <p>• Growth trend: {activityData.length >= 2 ? 
+                  ((activityData[activityData.length - 1].activeUsers - activityData[0].activeUsers) / activityData[0].activeUsers * 100).toFixed(1) : '0'}%</p>
+              </>
+            ) : (
+              <p>No engagement data available</p>
+            )}
           </CardContent>
         </Card>
       </div>

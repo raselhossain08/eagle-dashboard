@@ -4,63 +4,55 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Download, Calendar, FileText, BarChart3, Users, MessageSquare } from 'lucide-react';
-import { useState } from 'react';
+import { Download, Calendar, FileText, BarChart3, Users, MessageSquare, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { supportService } from '@/lib/api/support';
+import { toast } from 'sonner';
 
 const reportTemplates = [
   {
-    id: 1,
+    id: 'weekly-summary',
     name: 'Weekly Support Summary',
     description: 'Overview of support performance and key metrics for the week',
     category: 'performance',
     frequency: 'weekly',
-    lastGenerated: '2024-01-15'
   },
   {
-    id: 2,
+    id: 'customer-satisfaction',
     name: 'Customer Satisfaction Report',
     description: 'Detailed analysis of customer feedback and satisfaction scores',
     category: 'satisfaction',
     frequency: 'monthly',
-    lastGenerated: '2024-01-10'
   },
   {
-    id: 3,
+    id: 'team-performance',
     name: 'Team Performance Review',
     description: 'Individual and team performance metrics and trends',
     category: 'performance',
     frequency: 'monthly',
-    lastGenerated: '2024-01-05'
   },
   {
-    id: 4,
+    id: 'ticket-volume',
     name: 'Ticket Volume Analysis',
     description: 'Analysis of ticket volume trends and patterns',
     category: 'volume',
     frequency: 'weekly',
-    lastGenerated: '2024-01-14'
   },
   {
-    id: 5,
-    name: 'Impersonation Audit Report',
-    description: 'Security audit of all impersonation sessions',
-    category: 'security',
-    frequency: 'monthly',
-    lastGenerated: '2024-01-01'
-  },
-  {
-    id: 6,
+    id: 'sla-compliance',
     name: 'SLA Compliance Report',
     description: 'Service Level Agreement compliance and performance',
     category: 'compliance',
     frequency: 'weekly',
-    lastGenerated: '2024-01-13'
   }
 ];
 
 export default function ReportsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [dateRange, setDateRange] = useState('last-week');
+  const [recentReports, setRecentReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [generatingReports, setGeneratingReports] = useState<Set<string>>(new Set());
 
   const filteredReports = reportTemplates.filter(report =>
     selectedCategory === 'all' || report.category === selectedCategory
@@ -77,9 +69,114 @@ export default function ReportsPage() {
     }
   };
 
-  const handleGenerateReport = (reportId: number) => {
-    console.log('Generating report:', reportId);
-    // Implement report generation logic
+  const getDateRange = () => {
+    const endDate = new Date().toISOString();
+    let startDate: string;
+
+    switch (dateRange) {
+      case 'last-week':
+        startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        break;
+      case 'last-month':
+        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        break;
+      case 'last-quarter':
+        startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+        break;
+      default:
+        startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    return { startDate, endDate };
+  };
+
+  const handleGenerateReport = async (reportId: string) => {
+    try {
+      setGeneratingReports(prev => new Set([...prev, reportId]));
+      const { startDate, endDate } = getDateRange();
+      
+      const report = await supportService.generateReport(reportId, { startDate, endDate });
+      
+      // Add to recent reports
+      setRecentReports(prev => [
+        {
+          ...report,
+          status: 'completed',
+          generatedAt: new Date().toISOString()
+        },
+        ...prev.slice(0, 4) // Keep only 5 most recent
+      ]);
+
+      // Download the report
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${reportId}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success(`${report.title} generated successfully`);
+    } catch (error) {
+      console.error('Failed to generate report:', error);
+      toast.error('Failed to generate report');
+    } finally {
+      setGeneratingReports(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(reportId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleGenerateCustomReport = async () => {
+    try {
+      setLoading(true);
+      const { startDate, endDate } = getDateRange();
+      
+      const [analytics, teamPerformance] = await Promise.all([
+        supportService.getSupportAnalytics({ startDate, endDate }),
+        supportService.getTeamPerformance({ startDate, endDate })
+      ]);
+
+      const customReport = {
+        id: Math.random().toString(36).substr(2, 9),
+        type: 'custom-report',
+        title: 'Custom Support Report',
+        generatedAt: new Date().toISOString(),
+        period: { startDate, endDate },
+        data: {
+          analytics,
+          teamPerformance,
+          summary: {
+            totalTickets: analytics.overview.totalTickets,
+            resolutionRate: analytics.overview.resolutionRate,
+            avgResponseTime: analytics.overview.avgResponseTime,
+            teamProductivity: teamPerformance.summary.avgProductivity
+          }
+        }
+      };
+
+      // Download the custom report
+      const blob = new Blob([JSON.stringify(customReport, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `custom-support-report-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success('Custom report generated successfully');
+    } catch (error) {
+      console.error('Failed to generate custom report:', error);
+      toast.error('Failed to generate custom report');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -91,9 +188,9 @@ export default function ReportsPage() {
             Generate and manage support analytics reports
           </p>
         </div>
-        <Button>
+        <Button onClick={handleGenerateCustomReport} disabled={loading}>
           <Download className="w-4 h-4 mr-2" />
-          Generate Custom Report
+          {loading ? 'Generating...' : 'Generate Custom Report'}
         </Button>
       </div>
 
@@ -142,16 +239,16 @@ export default function ReportsPage() {
               <h4 className="font-semibold mb-2">Quick Stats</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span>Total Reports</span>
-                  <span className="font-medium">6</span>
+                  <span>Total Templates</span>
+                  <span className="font-medium">{reportTemplates.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Generated This Month</span>
-                  <span className="font-medium">12</span>
+                  <span>Generated Today</span>
+                  <span className="font-medium">{recentReports.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Scheduled Reports</span>
-                  <span className="font-medium">3</span>
+                  <span>Available Types</span>
+                  <span className="font-medium">5</span>
                 </div>
               </div>
             </div>
@@ -193,7 +290,7 @@ export default function ReportsPage() {
                           <span>Frequency: {report.frequency}</span>
                         </div>
                         <div className="text-muted-foreground">
-                          Last: {new Date(report.lastGenerated).toLocaleDateString()}
+                          Real-time data
                         </div>
                       </div>
                       
@@ -202,9 +299,10 @@ export default function ReportsPage() {
                           size="sm" 
                           className="flex-1"
                           onClick={() => handleGenerateReport(report.id)}
+                          disabled={generatingReports.has(report.id)}
                         >
                           <Download className="w-4 h-4 mr-2" />
-                          Generate
+                          {generatingReports.has(report.id) ? 'Generating...' : 'Generate'}
                         </Button>
                         <Button variant="outline" size="sm">
                           <BarChart3 className="w-4 h-4" />
@@ -225,47 +323,37 @@ export default function ReportsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                      <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">Weekly Support Summary</div>
-                      <div className="text-sm text-muted-foreground">
-                        Generated on {new Date().toLocaleDateString()}
+              {recentReports.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-muted-foreground">No reports generated yet</h3>
+                  <p className="text-muted-foreground">Generate your first report using the templates above.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {recentReports.map((report, index) => (
+                    <div key={report.id || index} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                          <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <div className="font-semibold">{report.title}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Generated on {new Date(report.generatedAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="default">Completed</Badge>
+                        <Button variant="outline" size="sm" disabled>
+                          <Download className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="default">Completed</Badge>
-                    <Button variant="outline" size="sm">
-                      <Download className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  ))}
                 </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
-                      <MessageSquare className="w-5 h-5 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">Customer Satisfaction Report</div>
-                      <div className="text-sm text-muted-foreground">
-                        Generated on {new Date().toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="secondary">Processing</Badge>
-                    <Button variant="outline" size="sm" disabled>
-                      <Download className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>

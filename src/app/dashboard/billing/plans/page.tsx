@@ -6,19 +6,28 @@ import { BillingDashboardShell } from '@/components/billing/billing-dashboard-sh
 import { BillingNavigation } from '@/components/billing/billing-navigation';
 import { PlansTable } from '@/components/billing/plans-table';
 import { PlanForm } from '@/components/billing/plan-form';
+import { PlanFilters } from '@/components/billing/plan-filters';
 import { Button } from '@/components/ui/button';
 import { Plus, Package } from 'lucide-react';
-import { usePlans, useCreatePlan, useUpdatePlan, useDeletePlan } from '@/hooks/use-plans';
+import { usePlans, useCreatePlan, useUpdatePlan, useDeletePlan, useTogglePlanStatus, useTogglePlanVisibility } from '@/hooks/use-plans';
 import { Plan, CreatePlanDto, UpdatePlanDto } from '@/types/billing';
 
 export default function PlansPage() {
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [filters, setFilters] = useState({
+    page: 1,
+    pageSize: 10,
+    search: '',
+    isActive: undefined as boolean | undefined,
+  });
   
-  const { data: plansData, isLoading } = usePlans();
+  const { data: plansData, isLoading, error } = usePlans(filters);
   const createPlanMutation = useCreatePlan();
   const updatePlanMutation = useUpdatePlan();
   const deletePlanMutation = useDeletePlan();
+  const toggleStatusMutation = useTogglePlanStatus();
+  const toggleVisibilityMutation = useTogglePlanVisibility();
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -26,14 +35,14 @@ export default function PlansPage() {
     { label: 'Plans', href: '/dashboard/billing/plans', active: true }
   ];
 
-  const handleCreatePlan = async (data: CreatePlanDto) => {
-    await createPlanMutation.mutateAsync(data);
+  const handleCreatePlan = async (data: CreatePlanDto | UpdatePlanDto) => {
+    await createPlanMutation.mutateAsync(data as CreatePlanDto);
     setShowPlanForm(false);
   };
 
-  const handleUpdatePlan = async (data: UpdatePlanDto) => {
+  const handleUpdatePlan = async (data: CreatePlanDto | UpdatePlanDto) => {
     if (editingPlan) {
-      await updatePlanMutation.mutateAsync({ id: editingPlan.id, data });
+      await updatePlanMutation.mutateAsync({ id: editingPlan.id, data: data as UpdatePlanDto });
       setEditingPlan(null);
     }
   };
@@ -49,13 +58,15 @@ export default function PlansPage() {
   };
 
   const handleToggleStatus = async (planId: string, isActive: boolean) => {
-    // Implementation for toggling plan status
-    console.log('Toggle plan status:', planId, isActive);
+    await toggleStatusMutation.mutateAsync({ id: planId, isActive });
   };
 
   const handleToggleVisibility = async (planId: string, isVisible: boolean) => {
-    // Implementation for toggling plan visibility
-    console.log('Toggle plan visibility:', planId, isVisible);
+    await toggleVisibilityMutation.mutateAsync({ id: planId, isVisible });
+  };
+
+  const handleFiltersChange = (newFilters: Partial<typeof filters>) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
   };
 
   return (
@@ -100,6 +111,23 @@ export default function PlansPage() {
 
         {!showPlanForm && !editingPlan && (
           <div className="space-y-6">
+            {/* Error handling */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex">
+                  <div className="h-5 w-5 text-red-400 mr-2">⚠</div>
+                  <div>
+                    <h3 className="text-sm font-medium text-red-800">
+                      Failed to load plans
+                    </h3>
+                    <p className="mt-1 text-sm text-red-700">
+                      {error instanceof Error ? error.message : 'An unexpected error occurred'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Stats Overview */}
             <div className="grid gap-4 md:grid-cols-4">
               <div className="bg-white p-4 rounded-lg border shadow-sm">
@@ -107,7 +135,7 @@ export default function PlansPage() {
                   <Package className="h-8 w-8 text-blue-600 mr-3" />
                   <div>
                     <p className="text-sm font-medium text-gray-600">Total Plans</p>
-                    <p className="text-2xl font-bold">{plansData?.data.length || 0}</p>
+                    <p className="text-2xl font-bold">{plansData?.pagination.total || 0}</p>
                   </div>
                 </div>
               </div>
@@ -129,20 +157,30 @@ export default function PlansPage() {
               </div>
               <div className="bg-white p-4 rounded-lg border shadow-sm">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Popular Plan</p>
-                  <p className="text-lg font-bold truncate">
-                    {plansData?.data[0]?.name || 'N/A'}
+                  <p className="text-sm font-medium text-gray-600">Plans on Page</p>
+                  <p className="text-lg font-bold">
+                    {plansData?.data.length || 0}
                   </p>
                 </div>
               </div>
             </div>
 
+            {/* Plan Filters */}
+            <PlanFilters
+              filters={filters}
+              onFiltersChange={handleFiltersChange}
+              totalCount={plansData?.pagination.total}
+              filteredCount={plansData?.data.length}
+            />
+
             {/* Plans Table */}
             <PlansTable
               data={plansData?.data || []}
-              pagination={plansData?.pagination || { page: 1, pageSize: 10, total: 0 }}
-              onPageChange={(page) => console.log('Page change:', page)}
-              onPageSizeChange={(size) => console.log('Page size change:', size)}
+              pagination={plansData?.pagination || { page: 1, pageSize: 10, total: 0, totalPages: 0 }}
+              filters={filters}
+              onFiltersChange={handleFiltersChange}
+              onPageChange={(page) => handleFiltersChange({ page })}
+              onPageSizeChange={(pageSize) => handleFiltersChange({ pageSize, page: 1 })}
               onEdit={handleEditPlan}
               onDelete={handleDeletePlan}
               onToggleStatus={handleToggleStatus}

@@ -7,11 +7,26 @@ import { BillingNavigation } from '@/components/billing/billing-navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Download, FileText, TrendingUp, Users, DollarSign, Calendar } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Download, FileText, TrendingUp, Users, DollarSign, Calendar, RefreshCw } from 'lucide-react';
+import { useDashboardStats, useRecentActivity, useRefreshBillingReports } from '@/hooks/use-billing-reports';
 import Link from 'next/link';
+import { DashboardStats, BillingActivity } from '@/types/billing-reports';
 
 export default function ReportsPage() {
   const [dateRange, setDateRange] = useState('30d');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Fetch real data using hooks with no auto-refresh
+  const { data: dashboardStats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useDashboardStats({
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+  });
+  const { data: recentActivity, isLoading: activityLoading, error: activityError, refetch: refetchActivity } = useRecentActivity(4, {
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+  });
+  const refreshReportsMutation = useRefreshBillingReports();
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -51,7 +66,7 @@ export default function ReportsPage() {
       title: 'Customer Cohort',
       description: 'Customer retention and lifetime value',
       icon: Users,
-      href: '#',
+      href: '/dashboard/billing/reports/customer-cohort',
       color: 'text-orange-600',
       updated: '1 week ago',
       frequency: 'Monthly',
@@ -60,7 +75,7 @@ export default function ReportsPage() {
       title: 'Plan Performance',
       description: 'Revenue and growth by plan',
       icon: FileText,
-      href: '#',
+      href: '/dashboard/billing/reports/plan-performance',
       color: 'text-indigo-600',
       updated: '2 days ago',
       frequency: 'Weekly',
@@ -69,87 +84,134 @@ export default function ReportsPage() {
       title: 'Invoice Summary',
       description: 'Invoice status and payment tracking',
       icon: FileText,
-      href: '#',
+      href: '/dashboard/billing/reports/invoice-summary',
       color: 'text-red-600',
       updated: '4 hours ago',
       frequency: 'Daily',
     },
   ];
 
-  const quickStats = [
-    {
-      title: 'Reports Generated',
-      value: '24',
-      description: 'This month',
-      icon: FileText,
-      color: 'text-blue-600',
-    },
-    {
-      title: 'Total Revenue',
-      value: '$197,500',
-      description: 'Current MRR',
-      icon: DollarSign,
-      color: 'text-green-600',
-    },
-    {
-      title: 'Active Subscribers',
-      value: '1,242',
-      description: 'Across all plans',
-      icon: Users,
-      color: 'text-purple-600',
-    },
-    {
-      title: 'Report Updates',
-      value: '12',
-      description: 'Today',
-      icon: TrendingUp,
-      color: 'text-orange-600',
-    },
-  ];
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+    }).format(amount / 100); // Assuming amounts are in cents
+  };
+
+  const getQuickStats = () => {
+    if (!dashboardStats) return [];
+    
+    return [
+      {
+        title: 'Total Plans',
+        value: dashboardStats.totalPlans?.toString() || '0',
+        description: 'Active plans',
+        icon: FileText,
+        color: 'text-blue-600',
+      },
+      {
+        title: 'Monthly Revenue',
+        value: formatCurrency(dashboardStats.monthlyRevenue || 0),
+        description: `${dashboardStats.revenueGrowth > 0 ? '+' : ''}${dashboardStats.revenueGrowth.toFixed(1)}% from last month`,
+        icon: DollarSign,
+        color: 'text-green-600',
+      },
+      {
+        title: 'Active Subscriptions',
+        value: dashboardStats.activeSubscriptions?.toString() || '0',
+        description: 'Current subscribers',
+        icon: Users,
+        color: 'text-purple-600',
+      },
+      {
+        title: 'New Customers',
+        value: dashboardStats.newCustomers?.toString() || '0',
+        description: 'This month',
+        icon: TrendingUp,
+        color: 'text-orange-600',
+      },
+    ];
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([refetchStats(), refetchActivity()]);
+      refreshReportsMutation.mutate();
+    } catch (error) {
+      console.error('Error refreshing dashboard data:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar Navigation */}
-      <div className="hidden w-64 lg:block border-r">
-        <div className="p-6">
-          <BillingNavigation />
-        </div>
-      </div>
-
       {/* Main Content */}
       <BillingDashboardShell
         title="Reports & Analytics"
         description="Comprehensive billing reports and financial analytics"
         breadcrumbs={breadcrumbs}
         actions={
-          <Button>
-            <Download className="h-4 w-4 mr-2" />
-            Export All
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh}
+              disabled={isRefreshing || refreshReportsMutation.isPending}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${(isRefreshing || refreshReportsMutation.isPending) ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Loading...' : 'Refresh'}
+            </Button>
+            <Button>
+              <Download className="h-4 w-4 mr-2" />
+              Export All
+            </Button>
+          </div>
         }
       >
         <div className="space-y-6">
           {/* Quick Stats */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {quickStats.map((stat, index) => {
-              const Icon = stat.icon;
-              return (
+            {statsLoading ? (
+              // Loading skeletons
+              Array.from({ length: 4 }).map((_, index) => (
                 <Card key={index}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      {stat.title}
-                    </CardTitle>
-                    <Icon className={`h-4 w-4 ${stat.color}`} />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-4" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stat.value}</div>
-                    <p className="text-xs text-muted-foreground">
-                      {stat.description}
-                    </p>
+                    <Skeleton className="h-8 w-16 mb-1" />
+                    <Skeleton className="h-3 w-24" />
                   </CardContent>
                 </Card>
-              );
-            })}
+              ))
+            ) : statsError ? (
+              <div className="col-span-4 text-center text-red-600">
+                Failed to load dashboard stats
+              </div>
+            ) : (
+              getQuickStats().map((stat, index) => {
+                const Icon = stat.icon;
+                return (
+                  <Card key={index}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        {stat.title}
+                      </CardTitle>
+                      <Icon className={`h-4 w-4 ${stat.color}`} />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stat.value}</div>
+                      <p className="text-xs text-muted-foreground">
+                        {stat.description}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
           </div>
 
           {/* Reports Grid */}
@@ -190,37 +252,64 @@ export default function ReportsPage() {
           {/* Recent Activity */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Report Activity</CardTitle>
+              <CardTitle>Recent Activity</CardTitle>
               <CardDescription>
-                Latest report generations and updates
+                Latest billing activity and events
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[
-                  { action: 'Revenue Report generated', user: 'System', time: '2 hours ago', type: 'auto' },
-                  { action: 'MRR Analysis exported', user: 'You', time: '4 hours ago', type: 'manual' },
-                  { action: 'Subscription Analytics updated', user: 'System', time: '6 hours ago', type: 'auto' },
-                  { action: 'Customer Cohort report generated', user: 'System', time: '1 day ago', type: 'auto' },
-                ].map((activity, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        activity.type === 'auto' ? 'bg-green-500' : 'bg-blue-500'
-                      }`} />
-                      <div>
-                        <div className="font-medium">{activity.action}</div>
-                        <div className="text-sm text-muted-foreground">
-                          by {activity.user} • {activity.time}
+              {activityLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <Skeleton className="w-2 h-2 rounded-full" />
+                        <div>
+                          <Skeleton className="h-4 w-48 mb-2" />
+                          <Skeleton className="h-3 w-32" />
                         </div>
                       </div>
+                      <Skeleton className="h-6 w-16" />
                     </div>
-                    <Badge variant={activity.type === 'auto' ? 'outline' : 'default'}>
-                      {activity.type}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : activityError ? (
+                <div className="text-center text-red-600 py-4">
+                  Failed to load recent activity
+                </div>
+              ) : recentActivity && recentActivity.length > 0 ? (
+                <div className="space-y-4">
+                  {recentActivity.map((activity: BillingActivity, index: number) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-2 h-2 rounded-full ${
+                          activity.type === 'subscription' ? 'bg-green-500' : 'bg-blue-500'
+                        }`} />
+                        <div>
+                          <div className="font-medium">{activity.description}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {activity.user} • {new Date(activity.date).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant={activity.type === 'subscription' ? 'default' : 'outline'}>
+                          {activity.type}
+                        </Badge>
+                        {activity.amount && (
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {formatCurrency(activity.amount)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground py-4">
+                  No recent activity
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

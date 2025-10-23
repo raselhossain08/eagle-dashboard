@@ -9,6 +9,7 @@ import { DataTable } from '@/components/reports/DataTable';
 import { useRevenueReport } from '@/hooks/useReports';
 import { addDays, format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
+import { TrendingUp, DollarSign, BarChart3, Activity } from 'lucide-react';
 
 export default function RevenueAnalyticsPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -31,9 +32,17 @@ export default function RevenueAnalyticsPage() {
   const tableColumns = [
     { key: 'period', label: 'Period' },
     { key: 'revenue', label: 'Revenue', format: (value: number) => `$${value.toLocaleString()}` },
-    { key: 'subscriptions', label: 'Subscriptions' },
-    { key: 'growth', label: 'Growth', format: (value: number) => `${value}%` },
+    { key: 'subscriptions', label: 'Transactions' },
+    { key: 'growth', label: 'Growth', format: (value: number) => `${value > 0 ? '+' : ''}${value}%` },
   ];
+
+  // Calculate metrics
+  const totalRevenue = revenueData?.reduce((sum: number, item: any) => sum + item.revenue, 0) || 0;
+  const totalTransactions = revenueData?.reduce((sum: number, item: any) => sum + item.subscriptions, 0) || 0;
+  const avgDailyRevenue = revenueData?.length ? totalRevenue / revenueData.length : 0;
+  const peakRevenue = Math.max(...(revenueData?.map((d: any) => d.revenue) || [0]));
+  const latestGrowth = revenueData?.[revenueData.length - 1]?.growth || 0;
+  const avgOrderValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
   return (
     <div className="space-y-6">
@@ -50,6 +59,64 @@ export default function RevenueAnalyticsPage() {
         </div>
       </div>
 
+      {/* Key Metrics Cards */}
+      <div className="grid gap-6 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${totalRevenue.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              For selected period
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg Daily Revenue</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${avgDailyRevenue.toFixed(0)}</div>
+            <p className="text-xs text-muted-foreground">
+              Average per day
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Peak Revenue</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${peakRevenue.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              Highest single day
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Growth Rate</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${latestGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {latestGrowth > 0 ? '+' : ''}{latestGrowth}%
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Latest period
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Revenue Chart */}
       <RevenueChart 
         data={revenueData || []} 
         isLoading={isLoading}
@@ -57,6 +124,7 @@ export default function RevenueAnalyticsPage() {
         description="Daily revenue performance over time"
       />
 
+      {/* Detailed Data Table */}
       <Card>
         <CardHeader>
           <CardTitle>Revenue Data</CardTitle>
@@ -65,14 +133,25 @@ export default function RevenueAnalyticsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DataTable 
-            data={revenueData || []} 
-            columns={tableColumns}
-            searchable={true}
-          />
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Loading revenue data...
+            </div>
+          ) : revenueData && revenueData.length > 0 ? (
+            <DataTable 
+              data={revenueData} 
+              columns={tableColumns}
+              searchable={true}
+            />
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No revenue data available for the selected period
+            </div>
+          )}
         </CardContent>
       </Card>
 
+      {/* Summary and Insights */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -83,19 +162,25 @@ export default function RevenueAnalyticsPage() {
             <div className="flex justify-between">
               <span>Total Revenue:</span>
               <span className="font-semibold">
-                ${revenueData?.reduce((sum, item) => sum + item.revenue, 0).toLocaleString() || 0}
+                ${totalRevenue.toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between">
               <span>Average Daily:</span>
               <span className="font-semibold">
-                ${revenueData?.length ? (revenueData.reduce((sum, item) => sum + item.revenue, 0) / revenueData.length).toFixed(2) : 0}
+                ${avgDailyRevenue.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Average Order Value:</span>
+              <span className="font-semibold">
+                ${avgOrderValue.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between">
               <span>Growth Rate:</span>
-              <span className="font-semibold text-green-600">
-                {revenueData?.[revenueData.length - 1]?.growth || 0}%
+              <span className={`font-semibold ${latestGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {latestGrowth > 0 ? '+' : ''}{latestGrowth}%
               </span>
             </div>
           </CardContent>
@@ -108,9 +193,11 @@ export default function RevenueAnalyticsPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>• {revenueData?.length || 0} days of data analyzed</p>
-            <p>• Peak revenue period analysis</p>
-            <p>• Seasonal trend detection</p>
-            <p>• Growth pattern insights</p>
+            <p>• Peak revenue: ${peakRevenue.toLocaleString()}</p>
+            <p>• Total transactions: {totalTransactions.toLocaleString()}</p>
+            <p>• Revenue trend: {latestGrowth >= 0 ? 'Positive' : 'Negative'} growth</p>
+            <p>• Revenue consistency: {avgDailyRevenue > 0 ? 'Active' : 'No activity'}</p>
+            <p>• Performance status: {latestGrowth > 5 ? 'Excellent' : latestGrowth > 0 ? 'Good' : 'Needs attention'}</p>
           </CardContent>
         </Card>
       </div>

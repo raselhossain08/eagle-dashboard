@@ -1,47 +1,100 @@
 // app/dashboard/discounts/codes/page.tsx
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { DiscountsDashboardShell } from '@/components/discounts/discounts-dashboard-shell';
 import { DiscountCodesTable } from '@/components/discounts/discount-codes-table';
 import { Button } from '@/components/ui/button';
-import { Plus, Download } from 'lucide-react';
+import { Plus, Download, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-
-// Mock data
-const mockDiscounts = [
-  {
-    id: '1',
-    code: 'SUMMER25',
-    description: 'Summer promotion 25% off',
-    type: 'percentage' as const,
-    value: 25,
-    currency: 'USD',
-    duration: 'forever' as const,
-    applicablePlans: ['premium', 'business'],
-    applicableProducts: [],
-    maxRedemptions: 1000,
-    timesRedeemed: 156,
-    isActive: true,
-    validFrom: new Date('2024-06-01'),
-    validUntil: new Date('2024-08-31'),
-    newCustomersOnly: false,
-    eligibleCountries: ['US', 'CA', 'GB'],
-    eligibleEmailDomains: [],
-    minAmount: 0,
-    maxAmount: 50,
-    isStackable: false,
-    priority: 1,
-    maxUsesPerCustomer: 1,
-    campaignId: 'campaign-1',
-    createdAt: new Date('2024-05-15'),
-    updatedAt: new Date('2024-07-20')
-  }
-];
+import { useDiscounts, useDeactivateDiscount, useExportDiscounts } from '@/hooks/use-discounts';
+import { DiscountFilters } from '@/types/discounts';
+import { toast } from 'sonner';
 
 export default function DiscountCodesPage() {
+  const router = useRouter();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [filters, setFilters] = useState<DiscountFilters>({});
+
+  // Fetch discounts data
+  const { 
+    data: discountsData, 
+    isLoading, 
+    error,
+    refetch 
+  } = useDiscounts({
+    page: currentPage,
+    limit: pageSize,
+    ...filters
+  });
+
+  // Mutations
+  const deactivateDiscount = useDeactivateDiscount();
+  const exportDiscounts = useExportDiscounts();
+
+  const handleFiltersChange = (newFilters: DiscountFilters) => {
+    setFilters(newFilters);
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const handleEdit = (discount: any) => {
+    router.push(`/dashboard/discounts/codes/${discount.id}`);
+  };
+
+  const handleDeactivate = async (discountId: string) => {
+    try {
+      await deactivateDiscount.mutateAsync(discountId);
+      toast.success('Discount deactivated successfully');
+      refetch();
+    } catch (error: any) {
+      toast.error('Failed to deactivate discount');
+      console.error('Failed to deactivate discount:', error);
+    }
+  };
+
+  const handleViewPerformance = (discountId: string) => {
+    router.push(`/dashboard/discounts/codes/${discountId}/performance`);
+  };
+
+  const handleExport = async () => {
+    try {
+      const blob = await exportDiscounts.mutateAsync({ 
+        format: 'csv',
+        filters 
+      });
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `discounts-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast.success('Export completed successfully');
+    } catch (error: any) {
+      toast.error('Failed to export data');
+      console.error('Export failed:', error);
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
   const actions = (
     <div className="flex space-x-2">
-      <Button variant="outline" size="sm">
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={handleExport}
+        disabled={isLoading}
+      >
         <Download className="mr-2 h-4 w-4" />
         Export
       </Button>
@@ -70,18 +123,29 @@ export default function DiscountCodesPage() {
         { label: 'Codes' }
       ]}
     >
+      {/* Error State */}
+      {error && (
+        <Alert className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Failed to load discounts: {error.message}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <DiscountCodesTable 
-        data={mockDiscounts}
+        data={discountsData?.data || []}
         pagination={{
-          pageIndex: 0,
-          pageSize: 10,
-          totalCount: mockDiscounts.length
+          pageIndex: currentPage - 1,
+          pageSize,
+          totalCount: discountsData?.total || 0
         }}
-        filters={{}}
-        onFiltersChange={() => {}}
-        onEdit={() => {}}
-        onDeactivate={() => {}}
-        onViewPerformance={() => {}}
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
+        onEdit={handleEdit}
+        onDeactivate={handleDeactivate}
+        onViewPerformance={handleViewPerformance}
+        isLoading={isLoading}
       />
     </DiscountsDashboardShell>
   );

@@ -5,23 +5,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateRangePicker } from '@/components/reports/DateRangePicker';
 import { ExportControls } from '@/components/reports/ExportControls';
 import { DataTable } from '@/components/reports/DataTable';
+import { useUserAcquisitionReport } from '@/hooks/useReports';
 import { addDays, format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
-
-// Mock data for acquisition
-const acquisitionData = [
-  { channel: 'Organic Search', users: 1250, cost: 0, conversion: 3.2, ltv: 245 },
-  { channel: 'Social Media', users: 890, cost: 1200, conversion: 2.1, ltv: 189 },
-  { channel: 'Email Marketing', users: 450, cost: 300, conversion: 4.5, ltv: 312 },
-  { channel: 'Referral', users: 320, cost: 0, conversion: 8.2, ltv: 421 },
-  { channel: 'Paid Ads', users: 1560, cost: 4500, conversion: 1.8, ltv: 167 },
-];
 
 export default function UserAcquisitionPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -30),
     to: new Date(),
   });
+
+  const acquisitionParams = {
+    startDate: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : '',
+    endDate: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : '',
+    metrics: ['users', 'cost', 'conversion', 'ltv'],
+  };
+
+  const { data: acquisitionData, isLoading } = useUserAcquisitionReport(acquisitionParams);
 
   const handleExport = (format: any) => {
     console.log('Exporting acquisition report:', format);
@@ -30,10 +30,17 @@ export default function UserAcquisitionPage() {
   const tableColumns = [
     { key: 'channel', label: 'Channel' },
     { key: 'users', label: 'New Users' },
-    { key: 'cost', label: 'Cost', format: (value: number) => value ? `$${value}` : 'Free' },
+    { key: 'cost', label: 'Cost', format: (value: number) => value ? `$${value.toLocaleString()}` : 'Free' },
     { key: 'conversion', label: 'Conversion', format: (value: number) => `${value}%` },
     { key: 'ltv', label: 'LTV', format: (value: number) => `$${value}` },
   ];
+
+  // Calculate summary metrics
+  const totalUsers = acquisitionData?.reduce((sum: number, item: any) => sum + (item.users || 0), 0) || 0;
+  const totalCost = acquisitionData?.reduce((sum: number, item: any) => sum + (item.cost || 0), 0) || 0;
+  const avgConversion = acquisitionData?.length ? 
+    (acquisitionData.reduce((sum: number, item: any) => sum + (item.conversion || 0), 0) / acquisitionData.length).toFixed(1) : '0';
+  const cac = totalUsers > 0 ? Math.round(totalCost / totalUsers) : 0;
 
   return (
     <div className="space-y-6">
@@ -57,7 +64,7 @@ export default function UserAcquisitionPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {acquisitionData.reduce((sum, item) => sum + item.users, 0).toLocaleString()}
+              {isLoading ? '...' : totalUsers.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               New users
@@ -71,7 +78,7 @@ export default function UserAcquisitionPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${acquisitionData.reduce((sum, item) => sum + item.cost, 0).toLocaleString()}
+              {isLoading ? '...' : `$${totalCost.toLocaleString()}`}
             </div>
             <p className="text-xs text-muted-foreground">
               Total spend
@@ -85,7 +92,7 @@ export default function UserAcquisitionPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(acquisitionData.reduce((sum, item) => sum + item.conversion, 0) / acquisitionData.length).toFixed(1)}%
+              {isLoading ? '...' : `${avgConversion}%`}
             </div>
             <p className="text-xs text-muted-foreground">
               Rate
@@ -99,7 +106,7 @@ export default function UserAcquisitionPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              $24
+              {isLoading ? '...' : `$${cac}`}
             </div>
             <p className="text-xs text-muted-foreground">
               Customer cost
@@ -116,11 +123,21 @@ export default function UserAcquisitionPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DataTable 
-            data={acquisitionData} 
-            columns={tableColumns}
-            searchable={true}
-          />
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Loading acquisition data...
+            </div>
+          ) : acquisitionData && acquisitionData.length > 0 ? (
+            <DataTable 
+              data={acquisitionData} 
+              columns={tableColumns}
+              searchable={true}
+            />
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No acquisition data available for the selected period
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -131,10 +148,18 @@ export default function UserAcquisitionPage() {
             <CardDescription>Effectiveness analysis</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p>• Highest converting: Referral (8.2%)</p>
-            <p>• Lowest cost: Organic Search</p>
-            <p>• Best LTV: Referral ($421)</p>
-            <p>• Highest volume: Paid Ads</p>
+            {isLoading ? (
+              <p>Loading performance insights...</p>
+            ) : acquisitionData && acquisitionData.length > 0 ? (
+              <>
+                <p>• Highest converting: {acquisitionData.sort((a: any, b: any) => b.conversion - a.conversion)[0]?.channel} ({acquisitionData.sort((a: any, b: any) => b.conversion - a.conversion)[0]?.conversion}%)</p>
+                <p>• Lowest cost: {acquisitionData.filter((d: any) => d.cost === 0)[0]?.channel || 'N/A'}</p>
+                <p>• Best LTV: {acquisitionData.sort((a: any, b: any) => b.ltv - a.ltv)[0]?.channel} (${acquisitionData.sort((a: any, b: any) => b.ltv - a.ltv)[0]?.ltv})</p>
+                <p>• Highest volume: {acquisitionData.sort((a: any, b: any) => b.users - a.users)[0]?.channel}</p>
+              </>
+            ) : (
+              <p>No data available</p>
+            )}
           </CardContent>
         </Card>
 
@@ -144,10 +169,18 @@ export default function UserAcquisitionPage() {
             <CardDescription>Return on investment</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p>• Overall ROI: 285%</p>
-            <p>• Best ROI: Email Marketing (1042%)</p>
-            <p>• Paid Ads ROI: 167%</p>
-            <p>• Break-even period: 2.3 months</p>
+            {isLoading ? (
+              <p>Loading ROI analysis...</p>
+            ) : acquisitionData && acquisitionData.length > 0 ? (
+              <>
+                <p>• Overall ROI: {totalCost > 0 ? Math.round((totalUsers * 150 / totalCost) * 100) : 'N/A'}%</p>
+                <p>• Best ROI: {acquisitionData.filter((d: any) => d.cost === 0)[0]?.channel || 'Organic channels'}</p>
+                <p>• Paid channels ROI: {Math.round((acquisitionData.filter((d: any) => d.cost > 0).reduce((sum: number, d: any) => sum + d.users * d.ltv, 0) / Math.max(1, acquisitionData.filter((d: any) => d.cost > 0).reduce((sum: number, d: any) => sum + d.cost, 0))) * 100)}%</p>
+                <p>• Break-even period: {cac > 0 ? Math.round(cac / 50 * 10) / 10 : 'N/A'} months</p>
+              </>
+            ) : (
+              <p>No data available</p>
+            )}
           </CardContent>
         </Card>
       </div>

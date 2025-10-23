@@ -111,13 +111,13 @@ export interface CreateCampaignDto {
 
 export interface ValidateDiscountDto {
   code: string;
-  userId?: string;
-  orderAmount: number;
-  currency: string;
+  customerEmail?: string;
+  orderAmount?: number;
+  currency?: string;
   planId?: string;
-  productId?: string;
-  country?: string;
-  email?: string;
+  productIds?: string[];
+  customerCountry?: string;
+  isNewCustomer?: boolean;
 }
 
 export interface ValidationResult {
@@ -165,6 +165,8 @@ export interface DiscountsOverviewData {
   totalRevenue: number;
   totalDiscountAmount: number;
   conversionRate: number;
-  topPerformingDiscounts: Discount[];
-  recentRedemptions: Redemption[];
+  averageDiscountValue: number;
+  topPerformingCode: string;
+  topPerformingDiscounts?: Discount[];
+  recentRedemptions?: Redemption[];
 }

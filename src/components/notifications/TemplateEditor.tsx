@@ -28,7 +28,7 @@ import { Template, CreateTemplateDto, UpdateTemplateDto } from '@/types/notifica
 
 interface TemplateEditorProps {
   template?: Template;
-  onSave: (data: CreateTemplateDto | UpdateTemplateDto) => void;
+  onSave: (data: CreateTemplateDto | UpdateTemplateDto) => Promise<void> | void;
   onPreview?: (content: string) => void;
   isSaving?: boolean;
 }
@@ -85,7 +85,7 @@ export default function TemplateEditor({ template, onSave, onPreview, isSaving =
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim() || !subject.trim() || !content.trim()) {
       return;
     }
@@ -97,7 +97,7 @@ export default function TemplateEditor({ template, onSave, onPreview, isSaving =
       variables,
     };
 
-    onSave(templateData);
+    await onSave(templateData);
   };
 
   const handlePreview = () => {

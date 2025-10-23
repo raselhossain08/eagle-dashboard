@@ -25,6 +25,10 @@ export function ProtectedRoute({
 
   useEffect(() => {
     const checkAuth = async () => {
+      // Migrate any legacy cookies to the new format
+      TokenStorageService.migrateLegacyCookies();
+      SessionStorageService.migrateLegacyCookies();
+
       const token = TokenStorageService.getAccessToken();
       const user = SessionStorageService.getUserSession();
 
@@ -35,8 +39,8 @@ export function ProtectedRoute({
 
       // Check token validity
       if (TokenStorageService.isTokenExpired(token)) {
-        TokenStorageService.clearTokens();
-        SessionStorageService.clearUserSession();
+        TokenStorageService.clearAllAuthCookies();
+        SessionStorageService.clearAllSessionCookies();
         router.push('/login');
         return;
       }

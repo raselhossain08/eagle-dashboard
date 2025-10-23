@@ -8,32 +8,61 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
-// import { useCreateUser } from '@/lib/hooks/useUsers';
+import { useCreateUser } from '@/hooks/useUsers';
+import { CreateUserDto } from '@/types/users';
+import { toast } from 'sonner';
 
 export default function CreateUserPage() {
   const router = useRouter();
-  // const createUserMutation = useCreateUser();
+  const createUser = useCreateUser();
   
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
+    password: '',
     phone: '',
     company: '',
-    sendWelcomeEmail: true,
+    preferences: {
+      emailNotifications: true,
+      smsNotifications: false,
+      language: 'en',
+      timezone: 'UTC',
+    }
   });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
     try {
-      // await createUserMutation.mutateAsync(formData);
-      // Simulate success
+      const userData: CreateUserDto = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone || undefined,
+        company: formData.company || undefined,
+        preferences: formData.preferences,
+      };
+
+      await createUser.mutateAsync(userData);
+      toast.success('User created successfully');
       router.push('/dashboard/users');
-    } catch (error) {
-      console.error('Failed to create user:', error);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create user');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -69,6 +98,7 @@ export default function CreateUserPage() {
                   value={formData.firstName}
                   onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
                   required
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -78,6 +108,7 @@ export default function CreateUserPage() {
                   value={formData.lastName}
                   onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
                   required
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
@@ -90,6 +121,21 @@ export default function CreateUserPage() {
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 required
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password *</Label>
+              <Input
+                id="password"
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                required
+                disabled={isSubmitting}
+                minLength={8}
+                placeholder="Minimum 8 characters"
               />
             </div>
 
@@ -99,6 +145,7 @@ export default function CreateUserPage() {
                 id="phone"
                 value={formData.phone}
                 onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                disabled={isSubmitting}
               />
             </div>
 
@@ -108,21 +155,48 @@ export default function CreateUserPage() {
                 id="company"
                 value={formData.company}
                 onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
+                disabled={isSubmitting}
               />
             </div>
 
-            <div className="flex items-center justify-between pt-4">
-              <Label htmlFor="welcome-email" className="flex flex-col space-y-1">
-                <span>Send Welcome Email</span>
-                <span className="font-normal text-sm text-muted-foreground">
-                  Send welcome email with login instructions
-                </span>
-              </Label>
-              <Switch
-                id="welcome-email"
-                checked={formData.sendWelcomeEmail}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, sendWelcomeEmail: checked }))}
-              />
+            <div className="space-y-4 pt-4">
+              <h3 className="text-lg font-medium">Preferences</h3>
+              
+              <div className="flex items-center justify-between">
+                <Label htmlFor="email-notifications" className="flex flex-col space-y-1">
+                  <span>Email Notifications</span>
+                  <span className="font-normal text-sm text-muted-foreground">
+                    Receive notifications via email
+                  </span>
+                </Label>
+                <Switch
+                  id="email-notifications"
+                  checked={formData.preferences.emailNotifications}
+                  onCheckedChange={(checked) => setFormData(prev => ({
+                    ...prev,
+                    preferences: { ...prev.preferences, emailNotifications: checked }
+                  }))}
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="sms-notifications" className="flex flex-col space-y-1">
+                  <span>SMS Notifications</span>
+                  <span className="font-normal text-sm text-muted-foreground">
+                    Receive notifications via SMS
+                  </span>
+                </Label>
+                <Switch
+                  id="sms-notifications"
+                  checked={formData.preferences.smsNotifications}
+                  onCheckedChange={(checked) => setFormData(prev => ({
+                    ...prev,
+                    preferences: { ...prev.preferences, smsNotifications: checked }
+                  }))}
+                  disabled={isSubmitting}
+                />
+              </div>
             </div>
 
             <div className="flex gap-4 pt-6">
@@ -130,14 +204,25 @@ export default function CreateUserPage() {
                 type="button"
                 variant="outline"
                 onClick={() => router.push('/dashboard/users')}
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
               <Button 
                 type="submit" 
-                disabled={false}
+                disabled={isSubmitting}
               >
-                Create User
+                {isSubmitting ? (
+                  <>
+                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Create User
+                  </>
+                )}
               </Button>
             </div>
           </CardContent>

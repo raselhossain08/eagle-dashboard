@@ -26,7 +26,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination'
-import { Contract, ContractFilters, PaginationState } from '@/lib/types/contracts'
+import { Contract, ContractFilters, ContractStatus } from '@/lib/types/contracts'
+import { PaginationState } from '@/types/contracts'
 import { 
   MoreHorizontal, 
   Eye, 
@@ -34,7 +35,8 @@ import {
   Download, 
   FileX,
   Calendar,
-  User
+  User,
+  Loader2
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -43,21 +45,27 @@ interface ContractsTableProps {
   pagination: PaginationState
   filters: ContractFilters
   onFiltersChange: (filters: ContractFilters) => void
+  onPaginationChange?: (page: number) => void
   onView: (contract: Contract) => void
   onSend: (contractId: string) => void
   onVoid: (contractId: string, reason: string) => void
   onDownload: (contractId: string) => void
   isLoading?: boolean
+  isSending?: boolean
+  isVoiding?: boolean
+  isDownloading?: boolean
 }
 
-const statusConfig = {
-  draft: { label: 'Draft', variant: 'secondary' as const },
-  sent: { label: 'Sent', variant: 'outline' as const },
-  viewed: { label: 'Viewed', variant: 'default' as const },
-  signed: { label: 'Signed', variant: 'success' as const },
-  declined: { label: 'Declined', variant: 'destructive' as const },
-  expired: { label: 'Expired', variant: 'destructive' as const },
-  void: { label: 'Void', variant: 'secondary' as const },
+const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  'draft': { label: 'Draft', variant: 'secondary' },
+  'sent': { label: 'Sent', variant: 'outline' },
+  'viewed': { label: 'Viewed', variant: 'default' },
+  'signed': { label: 'Signed', variant: 'default' },
+  'expired': { label: 'Expired', variant: 'destructive' },
+  'void': { label: 'Void', variant: 'secondary' },
+  'voided': { label: 'Void', variant: 'secondary' },
+  'archived': { label: 'Archived', variant: 'secondary' },
+  'declined': { label: 'Declined', variant: 'destructive' },
 }
 
 export function ContractsTable({
@@ -65,14 +73,18 @@ export function ContractsTable({
   pagination,
   filters,
   onFiltersChange,
+  onPaginationChange,
   onView,
   onSend,
   onVoid,
   onDownload,
-  isLoading = false
+  isLoading = false,
+  isSending = false,
+  isVoiding = false,
+  isDownloading = false
 }: ContractsTableProps) {
-  const getStatusBadge = (status: Contract['status']) => {
-    const config = statusConfig[status]
+  const getStatusBadge = (status: string) => {
+    const config = statusConfig[status] || { label: status, variant: 'secondary' as const }
     return (
       <Badge variant={config.variant}>
         {config.label}
@@ -81,8 +93,9 @@ export function ContractsTable({
   }
 
   const handlePageChange = (page: number) => {
-    // Handle pagination change
-    console.log('Page changed to:', page)
+    if (onPaginationChange) {
+      onPaginationChange(page)
+    }
   }
 
   if (isLoading) {
@@ -151,7 +164,14 @@ export function ContractsTable({
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      {contract.userId}
+                      <div>
+                        <div className="font-medium">
+                          {contract.user?.name || contract.recipientName || 'Unknown Customer'}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {contract.user?.email || contract.recipientEmail || ''}
+                        </div>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -189,26 +209,45 @@ export function ContractsTable({
                         </DropdownMenuItem>
                         
                         {contract.status === 'draft' && (
-                          <DropdownMenuItem onClick={() => onSend(contract.id)}>
-                            <Send className="h-4 w-4 mr-2" />
-                            Send Contract
+                          <DropdownMenuItem 
+                            onClick={() => onSend(contract.id)}
+                            disabled={isSending}
+                          >
+                            {isSending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Send className="h-4 w-4 mr-2" />
+                            )}
+                            {isSending ? 'Sending...' : 'Send Contract'}
                           </DropdownMenuItem>
                         )}
                         
-                        <DropdownMenuItem onClick={() => onDownload(contract.id)}>
-                          <Download className="h-4 w-4 mr-2" />
-                          Download PDF
+                        <DropdownMenuItem 
+                          onClick={() => onDownload(contract.id)}
+                          disabled={isDownloading}
+                        >
+                          {isDownloading ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4 mr-2" />
+                          )}
+                          {isDownloading ? 'Downloading...' : 'Download PDF'}
                         </DropdownMenuItem>
                         
                         <DropdownMenuSeparator />
                         
-                        {contract.status !== 'void' && contract.status !== 'signed' && (
+                        {contract.status !== 'void' && contract.status !== 'voided' && contract.status !== 'signed' && (
                           <DropdownMenuItem 
                             onClick={() => onVoid(contract.id, 'Manual void')}
                             className="text-destructive"
+                            disabled={isVoiding}
                           >
-                            <FileX className="h-4 w-4 mr-2" />
-                            Void Contract
+                            {isVoiding ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <FileX className="h-4 w-4 mr-2" />
+                            )}
+                            {isVoiding ? 'Voiding...' : 'Void Contract'}
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>

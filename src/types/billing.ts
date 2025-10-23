@@ -85,7 +85,14 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
+  name?: string;
+  phone?: string;
+  avatar?: string;
   company?: string;
+  status: 'active' | 'inactive' | 'pending';
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface CompanyDetails {
@@ -108,6 +115,7 @@ export interface PaginationState {
   page: number;
   pageSize: number;
   total: number;
+  totalPages?: number;
 }
 
 export interface PlansQueryParams {
@@ -153,11 +161,11 @@ export interface RevenueOverviewData {
 }
 
 export interface MrrTrendData {
-  date: string;
-  currentMrr: number;
-  newMrr: number;
-  churnedMrr: number;
-  netMrr: number;
+  month: string;
+  mrr: number;
+  newSubscriptions: number;
+  churned: number;
+  growth: number;
 }
 
 export interface PlanPerformanceData {
@@ -253,9 +261,20 @@ export interface SubscriptionMetrics {
 }
 
 export interface RevenueReportData {
-  overview: RevenueOverviewData;
-  timeline: RevenueTimelineData[];
-  breakdown: RevenueBreakdownData;
+  totalRevenue: number;
+  totalTransactions: number;
+  averageTransactionValue: number;
+  timelineData: Array<{
+    period: string;
+    revenue: number;
+    transactions: number;
+  }>;
+  breakdownData: Array<{
+    name: string;
+    revenue: number;
+    count: number;
+    percentage: number;
+  }>;
 }
 
 export interface CohortAnalysisData {
@@ -271,11 +290,8 @@ export interface CohortAnalysisData {
 
 export interface MrrReportData {
   trends: MrrTrendData[];
-  current: number;
+  currentMrr: number;
   growth: number;
-  composition: {
-    new: number;
-    expansion: number;
-    reactivation: number;
-  };
+  totalSubscriptions: number;
+  activeSubscriptions: number;
 }

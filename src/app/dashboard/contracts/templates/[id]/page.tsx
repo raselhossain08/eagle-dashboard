@@ -1,17 +1,19 @@
 'use client'
 
 import React from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { ContractsDashboardShell } from '@/components/contracts/contracts-dashboard-shell'
 import { TemplateEditor } from '@/components/contracts/template-editor'
 import { useTemplate, useUpdateTemplate } from '@/hooks/use-templates'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import { UpdateTemplateDto } from '@/lib/types/contracts'
+import { UpdateTemplateDto, CreateTemplateDto } from '@/lib/types/contracts'
+import { toast } from 'sonner'
 
 export default function EditTemplatePage() {
   const params = useParams()
+  const router = useRouter()
   const templateId = params.id as string
   const { data: template, isLoading: templateLoading } = useTemplate(templateId)
   const updateTemplate = useUpdateTemplate()
@@ -23,10 +25,15 @@ export default function EditTemplatePage() {
     { label: template?.name || 'Edit Template' }
   ]
 
-  const handleSaveTemplate = async (data: UpdateTemplateDto) => {
+  const handleSaveTemplate = async (data: CreateTemplateDto | UpdateTemplateDto) => {
     try {
-      await updateTemplate.mutateAsync({ id: templateId, data })
+      // Add id to data for update
+      const updateData = { ...data, id: templateId } as UpdateTemplateDto
+      await updateTemplate.mutateAsync({ id: templateId, data: updateData })
+      toast.success('Template updated successfully')
+      router.push('/dashboard/contracts/templates')
     } catch (error) {
+      toast.error('Failed to update template')
       console.error('Failed to update template:', error)
     }
   }
@@ -34,6 +41,10 @@ export default function EditTemplatePage() {
   const handlePreviewTemplate = (content: string, variables: Record<string, any>) => {
     // Implement preview logic
     console.log('Preview:', { content, variables })
+  }
+
+  const handleCancel = () => {
+    router.push('/dashboard/contracts/templates')
   }
 
   if (templateLoading) {
@@ -85,7 +96,7 @@ export default function EditTemplatePage() {
         template={template}
         onSave={handleSaveTemplate}
         onPreview={handlePreviewTemplate}
-        onCancel={() => window.history.back()}
+        onCancel={handleCancel}
         isLoading={updateTemplate.isPending}
       />
     </ContractsDashboardShell>

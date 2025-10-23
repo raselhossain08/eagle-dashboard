@@ -6,65 +6,85 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
-import { Download, TrendingUp, Users, Clock, Star, Target, Award } from 'lucide-react';
-
-const teamPerformanceData = [
-  { 
-    id: 1, 
-    name: 'John Smith', 
-    role: 'Senior Support', 
-    ticketsResolved: 45, 
-    avgResponseTime: '12m', 
-    satisfaction: 4.8, 
-    productivity: 95,
-    thisWeek: 12,
-    lastWeek: 10
-  },
-  { 
-    id: 2, 
-    name: 'Sarah Johnson', 
-    role: 'Support Agent', 
-    ticketsResolved: 38, 
-    avgResponseTime: '18m', 
-    satisfaction: 4.6, 
-    productivity: 88,
-    thisWeek: 8,
-    lastWeek: 9
-  },
-  { 
-    id: 3, 
-    name: 'Mike Chen', 
-    role: 'Technical Support', 
-    ticketsResolved: 52, 
-    avgResponseTime: '15m', 
-    satisfaction: 4.9, 
-    productivity: 98,
-    thisWeek: 15,
-    lastWeek: 12
-  },
-  { 
-    id: 4, 
-    name: 'Emily Davis', 
-    role: 'Support Agent', 
-    ticketsResolved: 41, 
-    avgResponseTime: '22m', 
-    satisfaction: 4.4, 
-    productivity: 82,
-    thisWeek: 10,
-    lastWeek: 11
-  },
-];
-
-const performanceMetrics = {
-  teamProductivity: 91,
-  avgSatisfaction: 4.7,
-  avgResponseTime: 16,
-  activeAgents: 8,
-  resolutionRate: 94,
-  firstContactResolution: 78
-};
+import { Download, TrendingUp, Users, Clock, Star, Target, Award, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { supportService } from '@/lib/api/support';
+import { toast } from 'sonner';
 
 export default function TeamPerformancePage() {
+  const [teamData, setTeamData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTeamPerformance();
+  }, []);
+
+  const fetchTeamPerformance = async () => {
+    try {
+      setLoading(true);
+      const endDate = new Date().toISOString();
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      
+      const data = await supportService.getTeamPerformance({ startDate, endDate });
+      setTeamData(data);
+    } catch (error) {
+      console.error('Failed to fetch team performance:', error);
+      toast.error('Failed to load team performance data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportReport = async () => {
+    try {
+      const endDate = new Date().toISOString();
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      
+      const report = await supportService.generateReport('team-performance', { startDate, endDate });
+      
+      // Create and download the report
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `team-performance-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success('Team performance report exported successfully');
+    } catch (error) {
+      console.error('Failed to export report:', error);
+      toast.error('Failed to export report');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!teamData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-muted-foreground">Failed to load team performance data</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const { teamPerformance, summary } = teamData;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -74,7 +94,7 @@ export default function TeamPerformancePage() {
             Detailed analytics and metrics for support team members
           </p>
         </div>
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleExportReport}>
           <Download className="w-4 h-4 mr-2" />
           Export Report
         </Button>
@@ -87,12 +107,12 @@ export default function TeamPerformancePage() {
             <Target className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{performanceMetrics.teamProductivity}%</div>
+            <div className="text-2xl font-bold">{Math.round(summary.avgProductivity)}%</div>
             <div className="flex items-center space-x-1 text-xs text-green-600">
               <TrendingUp className="w-3 h-3" />
-              <span>+5% from last month</span>
+              <span>Team average</span>
             </div>
-            <Progress value={performanceMetrics.teamProductivity} className="mt-2" />
+            <Progress value={summary.avgProductivity} className="mt-2" />
           </CardContent>
         </Card>
 
@@ -102,16 +122,16 @@ export default function TeamPerformancePage() {
             <Star className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{performanceMetrics.avgSatisfaction}/5</div>
+            <div className="text-2xl font-bold">{summary.avgSatisfaction.toFixed(1)}/5</div>
             <p className="text-xs text-muted-foreground">
-              Based on 284 reviews
+              Team average rating
             </p>
             <div className="flex items-center space-x-1 mt-1">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star
                   key={star}
                   className={`w-3 h-3 ${
-                    star <= Math.round(performanceMetrics.avgSatisfaction)
+                    star <= Math.round(summary.avgSatisfaction)
                       ? 'text-yellow-500 fill-yellow-500'
                       : 'text-gray-300'
                   }`}
@@ -123,16 +143,15 @@ export default function TeamPerformancePage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Resolution Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Handled</CardTitle>
             <Award className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{performanceMetrics.resolutionRate}%</div>
+            <div className="text-2xl font-bold">{summary.totalTicketsHandled}</div>
             <div className="flex items-center space-x-1 text-xs text-green-600">
               <TrendingUp className="w-3 h-3" />
-              <span>+3% from last week</span>
+              <span>Last 30 days</span>
             </div>
-            <Progress value={performanceMetrics.resolutionRate} className="mt-2" />
           </CardContent>
         </Card>
 
@@ -142,9 +161,9 @@ export default function TeamPerformancePage() {
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{performanceMetrics.activeAgents}</div>
+            <div className="text-2xl font-bold">{summary.totalAgents}</div>
             <p className="text-xs text-muted-foreground">
-              6 available, 2 in training
+              Team members with activity
             </p>
           </CardContent>
         </Card>
@@ -172,8 +191,8 @@ export default function TeamPerformancePage() {
                   <TableRow>
                     <TableHead>Agent</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Tickets Resolved</TableHead>
-                    <TableHead>This Week</TableHead>
+                    <TableHead>Tickets Handled</TableHead>
+                    <TableHead>Resolved</TableHead>
                     <TableHead>Avg Response Time</TableHead>
                     <TableHead>Satisfaction</TableHead>
                     <TableHead>Productivity</TableHead>
@@ -181,26 +200,23 @@ export default function TeamPerformancePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {teamPerformanceData.map((agent) => (
-                    <TableRow key={agent.id}>
+                  {teamPerformance.map((agent: any) => (
+                    <TableRow key={agent._id}>
                       <TableCell className="font-medium">{agent.name}</TableCell>
                       <TableCell>{agent.role}</TableCell>
-                      <TableCell>{agent.ticketsResolved}</TableCell>
+                      <TableCell>{agent.totalTickets}</TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-1">
-                          <span>{agent.thisWeek}</span>
-                          {agent.thisWeek > agent.lastWeek && (
-                            <TrendingUp className="w-3 h-3 text-green-500" />
-                          )}
-                          {agent.thisWeek < agent.lastWeek && (
-                            <TrendingUp className="w-3 h-3 text-red-500 rotate-180" />
-                          )}
+                          <span>{agent.resolvedTickets}</span>
+                          <span className="text-muted-foreground">
+                            ({Math.round(agent.resolutionRate)}%)
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-1">
                           <Clock className="w-3 h-3 text-muted-foreground" />
-                          <span>{agent.avgResponseTime}</span>
+                          <span>{Math.round(agent.avgResponseTime)}m</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -214,10 +230,10 @@ export default function TeamPerformancePage() {
                           <div className="w-16 bg-secondary rounded-full h-2">
                             <div 
                               className="bg-green-500 h-2 rounded-full" 
-                              style={{ width: `${agent.productivity}%` }}
+                              style={{ width: `${Math.min(agent.productivity, 100)}%` }}
                             />
                           </div>
-                          <span className="text-sm">{agent.productivity}%</span>
+                          <span className="text-sm">{Math.round(agent.productivity)}%</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -247,8 +263,8 @@ export default function TeamPerformancePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {teamPerformanceData.map((agent) => (
-                  <Card key={agent.id}>
+                {teamPerformance.map((agent: any) => (
+                  <Card key={agent._id}>
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2">
                         <span>{agent.name}</span>
@@ -258,11 +274,11 @@ export default function TeamPerformancePage() {
                     <CardContent>
                       <div className="grid gap-4 md:grid-cols-4">
                         <div className="text-center">
-                          <div className="text-2xl font-bold">{agent.ticketsResolved}</div>
-                          <div className="text-sm text-muted-foreground">Total Resolved</div>
+                          <div className="text-2xl font-bold">{agent.totalTickets}</div>
+                          <div className="text-sm text-muted-foreground">Total Handled</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold">{agent.avgResponseTime}</div>
+                          <div className="text-2xl font-bold">{Math.round(agent.avgResponseTime)}m</div>
                           <div className="text-sm text-muted-foreground">Avg Response</div>
                         </div>
                         <div className="text-center">
@@ -270,7 +286,7 @@ export default function TeamPerformancePage() {
                           <div className="text-sm text-muted-foreground">Satisfaction</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold">{agent.productivity}%</div>
+                          <div className="text-2xl font-bold">{Math.round(agent.productivity)}%</div>
                           <div className="text-sm text-muted-foreground">Productivity</div>
                         </div>
                       </div>
@@ -292,50 +308,38 @@ export default function TeamPerformancePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h4 className="font-semibold">Advanced Technical Training</h4>
-                      <p className="text-sm text-muted-foreground">
-                        3 team members need advanced technical support training
-                      </p>
+                {teamPerformance
+                  .filter((agent: any) => agent.productivity < 80 || agent.avgResponseTime > 30)
+                  .map((agent: any) => (
+                  <div key={agent._id} className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h4 className="font-semibold">{agent.name}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {agent.productivity < 80 && 'Low productivity detected'}
+                          {agent.avgResponseTime > 30 && 'High response time'}
+                        </p>
+                      </div>
+                      <Badge variant={agent.productivity < 70 ? 'destructive' : 'secondary'}>
+                        {agent.productivity < 70 ? 'High Priority' : 'Medium Priority'}
+                      </Badge>
                     </div>
-                    <Badge variant="destructive">High Priority</Badge>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <span>
+                        Productivity: {Math.round(agent.productivity)}% | 
+                        Response Time: {Math.round(agent.avgResponseTime)}m
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <span>Affected: Emily Davis, Sarah Johnson</span>
-                  </div>
-                </div>
+                ))}
                 
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h4 className="font-semibold">Customer Communication</h4>
-                      <p className="text-sm text-muted-foreground">
-                        2 team members need communication skills improvement
-                      </p>
-                    </div>
-                    <Badge variant="outline">Medium Priority</Badge>
+                {teamPerformance.every((agent: any) => agent.productivity >= 80 && agent.avgResponseTime <= 30) && (
+                  <div className="text-center py-8">
+                    <Award className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-green-600">Excellent Team Performance!</h3>
+                    <p className="text-muted-foreground">All team members are meeting performance targets.</p>
                   </div>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <span>Affected: Sarah Johnson, Mike Chen</span>
-                  </div>
-                </div>
-
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h4 className="font-semibold">Time Management</h4>
-                      <p className="text-sm text-muted-foreground">
-                        1 team member needs time management training
-                      </p>
-                    </div>
-                    <Badge variant="outline">Low Priority</Badge>
-                  </div>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <span>Affected: Emily Davis</span>
-                  </div>
-                </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -353,14 +357,14 @@ export default function TeamPerformancePage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
-                    <h4 className="font-semibold">First Contact Resolution Rate</h4>
+                    <h4 className="font-semibold">Average Resolution Rate</h4>
                     <p className="text-sm text-muted-foreground">Target: 85%</p>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold">{performanceMetrics.firstContactResolution}%</div>
-                    <Badge variant={performanceMetrics.firstContactResolution >= 85 ? 'default' : 'destructive'}>
-                      {performanceMetrics.firstContactResolution >= 85 ? 'On Target' : 'Below Target'}
-                    </Badge>
+                    <div className="text-2xl font-bold">
+                      {Math.round(teamPerformance.reduce((sum: number, agent: any) => sum + agent.resolutionRate, 0) / teamPerformance.length)}%
+                    </div>
+                    <Badge variant="default">On Target</Badge>
                   </div>
                 </div>
 
@@ -370,9 +374,9 @@ export default function TeamPerformancePage() {
                     <p className="text-sm text-muted-foreground">Target: 4.5/5</p>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold">{performanceMetrics.avgSatisfaction}/5</div>
-                    <Badge variant={performanceMetrics.avgSatisfaction >= 4.5 ? 'default' : 'destructive'}>
-                      {performanceMetrics.avgSatisfaction >= 4.5 ? 'On Target' : 'Below Target'}
+                    <div className="text-2xl font-bold">{summary.avgSatisfaction.toFixed(1)}/5</div>
+                    <Badge variant={summary.avgSatisfaction >= 4.5 ? 'default' : 'destructive'}>
+                      {summary.avgSatisfaction >= 4.5 ? 'On Target' : 'Below Target'}
                     </Badge>
                   </div>
                 </div>
@@ -383,10 +387,10 @@ export default function TeamPerformancePage() {
                     <p className="text-sm text-muted-foreground">Target: ≤ 20 minutes</p>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold">{performanceMetrics.avgResponseTime}m</div>
-                    <Badge variant={performanceMetrics.avgResponseTime <= 20 ? 'default' : 'destructive'}>
-                      {performanceMetrics.avgResponseTime <= 20 ? 'On Target' : 'Above Target'}
-                    </Badge>
+                    <div className="text-2xl font-bold">
+                      {Math.round(teamPerformance.reduce((sum: number, agent: any) => sum + agent.avgResponseTime, 0) / teamPerformance.length)}m
+                    </div>
+                    <Badge variant="default">Good</Badge>
                   </div>
                 </div>
               </div>

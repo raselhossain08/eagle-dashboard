@@ -4,13 +4,22 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Customer, SupportNote } from '@/types/support';
+import { SupportNote } from '@/types/support';
+import { Customer } from '@/lib/api/customers';
 import { User, Mail, Phone, Calendar, Star, AlertTriangle, MessageSquare } from 'lucide-react';
 import { SupportTimeline } from './SupportTimeline';
+
+interface CustomerSupportSummary {
+  totalNotes: number;
+  lastContactDate?: string;
+  averageResponseTime?: number;
+  satisfactionRating?: number;
+}
 
 interface CustomerProfileProps {
   customer: Customer;
   supportNotes: SupportNote[];
+  supportSummary?: CustomerSupportSummary;
   onStartImpersonation: (customerId: string) => void;
   onAddNote: (customerId: string) => void;
 }
@@ -18,6 +27,7 @@ interface CustomerProfileProps {
 export function CustomerProfile({ 
   customer, 
   supportNotes, 
+  supportSummary,
   onStartImpersonation, 
   onAddNote 
 }: CustomerProfileProps) {

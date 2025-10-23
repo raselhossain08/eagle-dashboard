@@ -1,4 +1,5 @@
 import { apiClient } from './api-client';
+import { AuthCookieService } from '@/lib/auth/cookie-service';
 
 export interface LoginCredentials {
   email: string;
@@ -28,18 +29,14 @@ export interface ApiResponse<T = any> {
 }
 
 class AuthService {
-  private tokenKey = 'accessToken';
-  private refreshTokenKey = 'refreshToken';
-  private userKey = 'user';
-
   // Login user
   async login(credentials: LoginCredentials): Promise<ApiResponse<LoginResponse>> {
     try {
       const response = await apiClient.post<LoginResponse>('/auth/login', credentials);
       
       if (response.accessToken) {
-        this.setTokens(response.accessToken, response.refreshToken);
-        this.setUser(response.user);
+        AuthCookieService.setTokens(response.accessToken, response.refreshToken);
+        AuthCookieService.setUserSession(response.user);
       }
       
       return { success: true, data: response };
@@ -132,59 +129,40 @@ class AuthService {
 
   // Token management
   private setTokens(accessToken: string, refreshToken?: string): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(this.tokenKey, accessToken);
-      if (refreshToken) {
-        localStorage.setItem(this.refreshTokenKey, refreshToken);
-      }
+    AuthCookieService.setAccessToken(accessToken);
+    if (refreshToken) {
+      AuthCookieService.setRefreshToken(refreshToken);
     }
   }
 
   private clearTokens(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(this.tokenKey);
-      localStorage.removeItem(this.refreshTokenKey);
-    }
+    AuthCookieService.clearTokens();
   }
 
   getAccessToken(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(this.tokenKey);
-    }
-    return null;
+    return AuthCookieService.getAccessToken();
   }
 
   private getRefreshToken(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(this.refreshTokenKey);
-    }
-    return null;
+    return AuthCookieService.getRefreshToken();
   }
 
   // User management
   private setUser(user: AuthUser): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(this.userKey, JSON.stringify(user));
-    }
+    AuthCookieService.setUserSession(user);
   }
 
   private clearUser(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(this.userKey);
-    }
+    AuthCookieService.clearTokens(); // This also clears user session
   }
 
   getCurrentUser(): AuthUser | null {
-    if (typeof window !== 'undefined') {
-      const user = localStorage.getItem(this.userKey);
-      return user ? JSON.parse(user) : null;
-    }
-    return null;
+    return AuthCookieService.getUserSession();
   }
 
   // Check authentication status
   isAuthenticated(): boolean {
-    return !!this.getAccessToken();
+    return AuthCookieService.isAuthenticated();
   }
 
   // Check if user has specific role

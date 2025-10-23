@@ -4,11 +4,12 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { OverviewCards } from "@/components/analytics/overview-cards";
 import { TimeSeriesChart } from "@/components/charts/time-series-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useOverviewStats, useEventTrends, useChannelPerformance } from "@/hooks/use-analytics";
 import { useDashboardStore } from "@/store/dashboard-store";
+import { AlertTriangle, Database } from "lucide-react";
 import { useMemo } from "react";
-
-
 
 export default function AnalyticsPage() {
   const { dateRange } = useDashboardStore();
@@ -23,10 +24,6 @@ export default function AnalyticsPage() {
 
   // Transform channel data for DonutChart
   const transformedChannelData = useMemo(() => {
-    if (channelError) {
-      console.error('❌ Channel data error:', channelError);
-    }
-    
     if (channelData && channelData.length > 0) {
       const totalSessions = channelData.reduce((sum, item) => sum + item.sessions, 0);
       return channelData.map((item, index) => ({
@@ -36,14 +33,10 @@ export default function AnalyticsPage() {
       }));
     }
     return [];
-  }, [channelData, channelError]);
+  }, [channelData]);
 
   // Transform event trends data for TimeSeriesChart
   const transformedEventTrends = useMemo(() => {
-    if (trendsError) {
-      console.error('❌ Event trends error:', trendsError);
-    }
-    
     if (eventTrends && eventTrends.length > 0) {
       return eventTrends.map(item => ({
         date: item.date || new Date().toISOString().split('T')[0],
@@ -52,10 +45,73 @@ export default function AnalyticsPage() {
       }));
     }
     return [];
-  }, [eventTrends, trendsError]);
+  }, [eventTrends]);
 
-  const hasRealData = overviewData || eventTrends?.length || channelData?.length;
+  const hasData = overviewData || eventTrends?.length || channelData?.length;
   const hasErrors = overviewError || trendsError || channelError;
+  const isLoading = overviewLoading || trendsLoading || channelLoading;
+
+  // Error state
+  if (hasErrors && !isLoading) {
+    return (
+      <DashboardShell
+        title="Analytics"
+        description="Comprehensive analytics dashboard with real-time insights"
+      >
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Failed to load analytics data from the backend. Please check your connection and try again.
+            <div className="mt-2 text-sm">
+              {overviewError && <div>Overview: {overviewError.message}</div>}
+              {trendsError && <div>Trends: {trendsError.message}</div>}
+              {channelError && <div>Channels: {channelError.message}</div>}
+            </div>
+          </AlertDescription>
+        </Alert>
+      </DashboardShell>
+    );
+  }
+
+  // Loading state
+  if (isLoading && !hasData) {
+    return (
+      <DashboardShell
+        title="Analytics"
+        description="Comprehensive analytics dashboard with real-time insights"
+      >
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 w-full" />
+            ))}
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Skeleton className="h-80 w-full" />
+            <Skeleton className="h-80 w-full" />
+          </div>
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  // No data state (only when there's actually no data, not as fallback)
+  if (!hasData && !isLoading && !hasErrors) {
+    return (
+      <DashboardShell
+        title="Analytics"
+        description="Comprehensive analytics dashboard with real-time insights"
+      >
+        <div className="text-center py-12">
+          <Database className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold">No analytics data available</h3>
+          <p className="text-muted-foreground mt-2">
+            No analytics events have been recorded yet. Data will appear here as users interact with the system.
+          </p>
+        </div>
+      </DashboardShell>
+    );
+  }
 
   return (
     <DashboardShell
@@ -63,43 +119,6 @@ export default function AnalyticsPage() {
       description="Comprehensive analytics dashboard with real-time insights"
     >
       <div className="space-y-6">
-        {/* Data Status Indicator */}
-        {hasErrors && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <span className="text-yellow-400">⚠️</span>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-800">
-                  Some analytics data couldn't be loaded
-                </h3>
-                <div className="mt-2 text-sm text-yellow-700">
-                  <p>Showing fallback data. Check console for details or try refreshing the page.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {!hasRealData && !hasErrors && !overviewLoading && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <span className="text-blue-400">ℹ️</span>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800">
-                  No analytics data available
-                </h3>
-                <div className="mt-2 text-sm text-blue-700">
-                  <p>This might be a new installation. Try seeding some sample data by running: <code className="bg-blue-100 px-1 rounded">npm run seed:analytics</code> in the backend.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         <OverviewCards 
           data={overviewData || null}
           isLoading={overviewLoading}
@@ -121,8 +140,6 @@ export default function AnalyticsPage() {
             isLoading={channelLoading}
           />
         </div>
-        
-        
       </div>
     </DashboardShell>
   );

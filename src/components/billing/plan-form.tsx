@@ -3,8 +3,6 @@
 
 import React from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,23 +12,21 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, X, DollarSign, Calendar, Users } from 'lucide-react';
 import { Plan, CreatePlanDto, UpdatePlanDto } from '@/types/billing';
 
-const planFormSchema = z.object({
-  name: z.string().min(1, 'Plan name is required'),
-  description: z.string().optional(),
-  price: z.number().min(0, 'Price must be positive'),
-  currency: z.string().default('USD'),
-  interval: z.enum(['month', 'year', 'week', 'day', 'one_time']),
-  intervalCount: z.number().min(1, 'Interval count must be at least 1'),
-  trialPeriodDays: z.number().min(0, 'Trial days must be positive'),
-  features: z.array(z.string()),
-  sortOrder: z.number().min(0, 'Sort order must be positive'),
-  isActive: z.boolean().default(true),
-  isVisible: z.boolean().default(true),
-  baseSeats: z.number().min(1, 'Base seats must be at least 1'),
-  pricePerSeat: z.number().min(0, 'Price per seat must be positive'),
-});
-
-type PlanFormData = z.infer<typeof planFormSchema>;
+interface PlanFormData {
+  name: string;
+  description: string;
+  price: number;
+  currency: string;
+  interval: 'month' | 'year' | 'week' | 'day' | 'one_time';
+  intervalCount: number;
+  trialPeriodDays: number;
+  features: string[];
+  sortOrder: number;
+  isActive: boolean;
+  isVisible: boolean;
+  baseSeats: number;
+  pricePerSeat: number;
+}
 
 interface PlanFormProps {
   plan?: Plan;
@@ -42,31 +38,29 @@ interface PlanFormProps {
 
 export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanFormProps) {
   const [featureInput, setFeatureInput] = React.useState('');
+  const [submitError, setSubmitError] = React.useState<string>('');
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<PlanFormData>({
-    resolver: zodResolver(planFormSchema),
+  const form = useForm<PlanFormData>({
     defaultValues: plan ? {
       name: plan.name,
-      description: plan.description,
+      description: plan.description || '',
       price: plan.price,
       currency: plan.currency,
       interval: plan.interval,
       intervalCount: plan.intervalCount,
       trialPeriodDays: plan.trialPeriodDays,
-      features: plan.features,
+      features: plan.features || [],
       sortOrder: plan.sortOrder,
       isActive: plan.isActive,
       isVisible: plan.isVisible,
       baseSeats: plan.baseSeats,
       pricePerSeat: plan.pricePerSeat,
     } : {
-      interval: 'month',
+      name: '',
+      description: '',
+      price: 0,
+      currency: 'USD',
+      interval: 'month' as const,
       intervalCount: 1,
       trialPeriodDays: 0,
       features: [],
@@ -75,9 +69,10 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
       isVisible: true,
       baseSeats: 1,
       pricePerSeat: 0,
-      currency: 'USD',
     },
   });
+
+  const { register, handleSubmit, setValue, watch, formState: { errors } } = form;
 
   const features = watch('features');
   const baseSeats = watch('baseSeats');
@@ -97,7 +92,40 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
   };
 
   const handleFormSubmit = async (data: PlanFormData) => {
-    await onSubmit(data);
+    try {
+      setSubmitError('');
+      
+      // Basic validation
+      if (!data.name.trim()) {
+        setSubmitError('Plan name is required');
+        return;
+      }
+      if (data.price < 0) {
+        setSubmitError('Price must be positive');
+        return;
+      }
+      if (data.intervalCount < 1) {
+        setSubmitError('Interval count must be at least 1');
+        return;
+      }
+      if (data.baseSeats < 1) {
+        setSubmitError('Base seats must be at least 1');
+        return;
+      }
+
+      // Transform data to match the expected DTO format
+      const submitData = {
+        ...data,
+        // Ensure currency is uppercase
+        currency: data.currency.toUpperCase(),
+        // Clean description
+        description: data.description.trim() || undefined,
+      };
+      await onSubmit(submitData);
+    } catch (error) {
+      console.error('Form submission error:', error);
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save plan');
+    }
   };
 
   const getIntervalText = () => {
@@ -120,6 +148,12 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {submitError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-600">{submitError}</p>
+          </div>
+        )}
+        
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
           {/* Basic Information */}
           <div className="grid gap-4 md:grid-cols-2">
@@ -132,9 +166,6 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
                 {...register('name')}
                 placeholder="e.g., Pro Plan"
               />
-              {errors.name && (
-                <p className="text-sm text-red-600">{errors.name.message}</p>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -146,9 +177,6 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
                 type="number"
                 {...register('sortOrder', { valueAsNumber: true })}
               />
-              {errors.sortOrder && (
-                <p className="text-sm text-red-600">{errors.sortOrder.message}</p>
-              )}
             </div>
           </div>
 
@@ -181,9 +209,6 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
                   placeholder="0.00"
                 />
               </div>
-              {errors.price && (
-                <p className="text-sm text-red-600">{errors.price.message}</p>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -227,9 +252,6 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
                   {...register('intervalCount', { valueAsNumber: true })}
                   placeholder="1"
                 />
-                {errors.intervalCount && (
-                  <p className="text-sm text-red-600">{errors.intervalCount.message}</p>
-                )}
               </div>
             )}
           </div>
@@ -245,9 +267,6 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
                 {...register('trialPeriodDays', { valueAsNumber: true })}
                 placeholder="0"
               />
-              {errors.trialPeriodDays && (
-                <p className="text-sm text-red-600">{errors.trialPeriodDays.message}</p>
-              )}
             </div>
           )}
 
@@ -267,9 +286,6 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
                   placeholder="1"
                 />
               </div>
-              {errors.baseSeats && (
-                <p className="text-sm text-red-600">{errors.baseSeats.message}</p>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -287,9 +303,6 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
                   placeholder="0.00"
                 />
               </div>
-              {errors.pricePerSeat && (
-                <p className="text-sm text-red-600">{errors.pricePerSeat.message}</p>
-              )}
             </div>
           </div>
 

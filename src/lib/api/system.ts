@@ -1,118 +1,73 @@
 // src/lib/api/system.ts
-import { 
-  SystemHealth, 
-  SystemStats, 
-  SystemSettings, 
+import {
+  SystemHealth,
+  SystemStats,
+  SystemSettings,
   FeatureFlags,
   WebhookEndpoint,
   WebhookStats,
   BackupResult,
   CleanupResult,
   MaintenanceSchedule,
-  MetricsParams
+  MetricsParams,
 } from '@/types/system';
+import { apiClient } from '@/lib/api/client';
 
 class SystemService {
-  private baseUrl = '/api/system';
+  // apiClient already includes API prefix; controller uses 'system' base
+  private baseUrl = '/system';
 
   // Health monitoring
   async getSystemHealth(): Promise<SystemHealth> {
-    const response = await fetch(`${this.baseUrl}/health`);
-    if (!response.ok) throw new Error('Failed to fetch system health');
-    return response.json();
+    return await apiClient.get<SystemHealth>(`${this.baseUrl}/health`);
   }
 
   async getSystemStats(): Promise<SystemStats> {
-    const response = await fetch(`${this.baseUrl}/stats`);
-    if (!response.ok) throw new Error('Failed to fetch system stats');
-    return response.json();
+    return await apiClient.get<SystemStats>(`${this.baseUrl}/stats`);
   }
 
   async getSystemMetrics(params: MetricsParams): Promise<any> {
-    const query = new URLSearchParams(params as any);
-    const response = await fetch(`${this.baseUrl}/metrics?${query}`);
-    if (!response.ok) throw new Error('Failed to fetch system metrics');
-    return response.json();
+    return await apiClient.get<any>(`${this.baseUrl}/metrics?${new URLSearchParams(params as any)}`);
   }
 
   // Settings management
   async getSettings(category?: string): Promise<SystemSettings> {
     const url = category ? `${this.baseUrl}/settings?category=${category}` : `${this.baseUrl}/settings`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Failed to fetch settings');
-    return response.json();
+    return await apiClient.get<SystemSettings>(url);
   }
 
   async getSetting(key: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/settings/${key}`);
-    if (!response.ok) throw new Error('Failed to fetch setting');
-    return response.json();
+    return await apiClient.get<any>(`${this.baseUrl}/settings/${key}`);
   }
 
   async updateSetting(key: string, value: any): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/settings/${key}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value })
-    });
-    if (!response.ok) throw new Error('Failed to update setting');
-    return response.json();
+    return await apiClient.post<any>(`${this.baseUrl}/settings/${key}`, { value });
   }
 
   async getFeatureFlags(): Promise<FeatureFlags> {
-    const response = await fetch(`${this.baseUrl}/settings/feature-flags`);
-    if (!response.ok) throw new Error('Failed to fetch feature flags');
-    return response.json();
+    return await apiClient.get<FeatureFlags>(`${this.baseUrl}/settings/feature-flags`);
   }
 
   async toggleFeatureFlag(key: string, enabled: boolean): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/settings/feature-flags/${key}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled })
-    });
-    if (!response.ok) throw new Error('Failed to toggle feature flag');
-    return response.json();
+    return await apiClient.post<any>(`${this.baseUrl}/settings/feature-flags/${key}`, { enabled });
   }
 
   // Webhook operations
   async createWebhookEndpoint(data: Partial<WebhookEndpoint>): Promise<WebhookEndpoint> {
-    const response = await fetch(`${this.baseUrl}/webhooks/endpoints`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    if (!response.ok) throw new Error('Failed to create webhook endpoint');
-    return response.json();
+    return await apiClient.post<WebhookEndpoint>(`${this.baseUrl}/webhooks/endpoints`, data);
   }
 
   async triggerWebhook(event: string, payload: any): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/webhooks/trigger`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event, payload })
-    });
-    if (!response.ok) throw new Error('Failed to trigger webhook');
-    return response.json();
+    return await apiClient.post<any>(`${this.baseUrl}/webhooks/trigger`, { event, payload });
   }
 
   async getWebhookStats(endpointId?: string): Promise<WebhookStats> {
-    const url = endpointId 
-      ? `${this.baseUrl}/webhooks/endpoints/${endpointId}/stats`
-      : `${this.baseUrl}/webhooks/stats`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Failed to fetch webhook stats');
-    return response.json();
+    const url = endpointId ? `${this.baseUrl}/webhooks/endpoints/${endpointId}/stats` : `${this.baseUrl}/webhooks/stats`;
+    return await apiClient.get<WebhookStats>(url);
   }
 
   async retryFailedWebhooks(endpointId?: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/webhooks/retry-failed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ endpointId })
-    });
-    if (!response.ok) throw new Error('Failed to retry webhooks');
-    return response.json();
+    return await apiClient.post<any>(`${this.baseUrl}/webhooks/retry-failed`, { endpointId });
   }
 
   // Maintenance operations

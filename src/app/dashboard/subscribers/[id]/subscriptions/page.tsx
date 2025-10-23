@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 import { 
   ArrowLeft, 
   Plus,
@@ -16,7 +17,7 @@ import {
   X
 } from 'lucide-react';
 import Link from 'next/link';
-import { useSubscriber } from '@/hooks/useSubscribers';
+import { useSubscriberSubscriptions, useSubscriberProfile } from '@/hooks/useSubscriberProfile';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,51 +25,60 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const mockSubscriptions = [
-  {
-    id: 'sub_1',
-    planName: 'Premium Plan',
-    status: 'active',
-    billingCycle: 'monthly',
-    amount: 49.99,
-    currency: 'USD',
-    startDate: '2024-01-15',
-    nextBillingDate: '2024-02-15',
-    createdAt: '2024-01-15T10:00:00Z'
-  },
-  {
-    id: 'sub_2',
-    planName: 'Basic Plan',
-    status: 'canceled',
-    billingCycle: 'yearly',
-    amount: 299.99,
-    currency: 'USD',
-    startDate: '2023-06-01',
-    endDate: '2024-01-10',
-    canceledAt: '2024-01-10T14:30:00Z',
-    createdAt: '2023-06-01T09:00:00Z'
-  }
-];
-
 export default function SubscriptionsPage() {
   const params = useParams();
   const id = params.id as string;
-  const { data: subscriber, isLoading } = useSubscriber(id);
+  
+  const { data: profile, isLoading: profileLoading } = useSubscriberProfile(id);
+  const { data: subscriptions, isLoading: subscriptionsLoading } = useSubscriberSubscriptions(id);
+
+  const isLoading = profileLoading || subscriptionsLoading;
 
   const getStatusBadge = (status: string) => {
     const variants = {
       active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
       canceled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
       paused: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-      expired: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+      past_due: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
+      trialing: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+      incomplete: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
     };
-    return variants[status as keyof typeof variants] || variants.expired;
+    return variants[status as keyof typeof variants] || variants.incomplete;
   };
 
   const getBillingCycleBadge = (cycle: string) => {
     return cycle === 'monthly' 
       ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
       : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
+  };
+
+  const getStatusText = (status: string) => {
+    const labels = {
+      active: 'Active',
+      canceled: 'Canceled',
+      paused: 'Paused',
+      past_due: 'Past Due',
+      trialing: 'Trial',
+      incomplete: 'Incomplete',
+      incomplete_expired: 'Expired'
+    };
+    return labels[status as keyof typeof labels] || status;
+  };
+
+  const formatAmount = (amount: number) => {
+    return (amount / 100).toFixed(2); // Convert from cents to dollars
+  };
+
+  const handlePauseSubscription = (subscriptionId: string) => {
+    toast.info('Subscription pause functionality coming soon');
+  };
+
+  const handleCancelSubscription = (subscriptionId: string) => {
+    toast.info('Subscription cancellation functionality coming soon');
+  };
+
+  const handleReactivateSubscription = (subscriptionId: string) => {
+    toast.info('Subscription reactivation functionality coming soon');
   };
 
   if (isLoading) {
@@ -97,6 +107,9 @@ export default function SubscriptionsPage() {
     );
   }
 
+  const activeSubscriptions = subscriptions?.filter(sub => sub.status === 'active' || sub.status === 'trialing') || [];
+  const inactiveSubscriptions = subscriptions?.filter(sub => sub.status !== 'active' && sub.status !== 'trialing') || [];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -110,7 +123,7 @@ export default function SubscriptionsPage() {
           <div>
             <h1 className="text-3xl font-bold">Subscription History</h1>
             <p className="text-muted-foreground">
-              Manage subscriptions for {subscriber?.firstName} {subscriber?.lastName}
+              Manage subscriptions for {profile?.firstName} {profile?.lastName}
             </p>
           </div>
         </div>
@@ -130,55 +143,65 @@ export default function SubscriptionsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {mockSubscriptions
-              .filter(sub => sub.status === 'active')
-              .map((subscription) => (
-                <div key={subscription.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-semibold">{subscription.planName}</h3>
-                      <Badge className={getStatusBadge(subscription.status)}>
-                        {subscription.status}
-                      </Badge>
-                      <Badge className={getBillingCycleBadge(subscription.billingCycle)}>
-                        {subscription.billingCycle}
-                      </Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      <span>${subscription.amount}/{subscription.billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
-                      <span className="mx-2">•</span>
-                      <span>Next billing: {new Date(subscription.nextBillingDate!).toLocaleDateString()}</span>
-                      <span className="mx-2">•</span>
-                      <span>Started: {new Date(subscription.startDate).toLocaleDateString()}</span>
-                    </div>
+            {activeSubscriptions.map((subscription) => (
+              <div key={subscription.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-semibold">{subscription.planName}</h3>
+                    <Badge className={getStatusBadge(subscription.status)}>
+                      {getStatusText(subscription.status)}
+                    </Badge>
+                    <Badge className={getBillingCycleBadge(subscription.billingCycle)}>
+                      {subscription.billingCycle}
+                    </Badge>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm">
-                      <Pause className="h-4 w-4 mr-1" />
-                      Pause
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <X className="h-4 w-4 mr-2" />
-                          Cancel
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  <div className="text-sm text-muted-foreground">
+                    <span>${formatAmount(subscription.amount)}/{subscription.billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                    <span className="mx-2">•</span>
+                    <span>Next billing: {new Date(subscription.currentPeriodEnd).toLocaleDateString()}</span>
+                    <span className="mx-2">•</span>
+                    <span>Started: {new Date(subscription.startDate).toLocaleDateString()}</span>
+                    {subscription.trialEnd && new Date(subscription.trialEnd) > new Date() && (
+                      <>
+                        <span className="mx-2">•</span>
+                        <span>Trial ends: {new Date(subscription.trialEnd).toLocaleDateString()}</span>
+                      </>
+                    )}
                   </div>
                 </div>
-              ))}
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handlePauseSubscription(subscription.id)}
+                  >
+                    <Pause className="h-4 w-4 mr-1" />
+                    Pause
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleCancelSubscription(subscription.id)}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            ))}
             
-            {mockSubscriptions.filter(sub => sub.status === 'active').length === 0 && (
+            {activeSubscriptions.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
                 No active subscriptions found
               </div>
@@ -197,43 +220,85 @@ export default function SubscriptionsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {mockSubscriptions
-              .filter(sub => sub.status !== 'active')
-              .map((subscription) => (
-                <div key={subscription.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-semibold">{subscription.planName}</h3>
-                      <Badge className={getStatusBadge(subscription.status)}>
-                        {subscription.status}
-                      </Badge>
-                      <Badge className={getBillingCycleBadge(subscription.billingCycle)}>
-                        {subscription.billingCycle}
-                      </Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      <span>${subscription.amount}/{subscription.billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
-                      <span className="mx-2">•</span>
-                      <span>
-                        {subscription.status === 'canceled' 
-                          ? `Canceled: ${new Date(subscription.canceledAt!).toLocaleDateString()}`
-                          : `Ended: ${new Date(subscription.endDate!).toLocaleDateString()}`
-                        }
-                      </span>
-                    </div>
+            {inactiveSubscriptions.map((subscription) => (
+              <div key={subscription.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-semibold">{subscription.planName}</h3>
+                    <Badge className={getStatusBadge(subscription.status)}>
+                      {getStatusText(subscription.status)}
+                    </Badge>
+                    <Badge className={getBillingCycleBadge(subscription.billingCycle)}>
+                      {subscription.billingCycle}
+                    </Badge>
                   </div>
-                  <Button variant="outline" size="sm">
-                    <Play className="h-4 w-4 mr-1" />
-                    Reactivate
-                  </Button>
+                  <div className="text-sm text-muted-foreground">
+                    <span>${formatAmount(subscription.amount)}/{subscription.billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                    <span className="mx-2">•</span>
+                    <span>
+                      {subscription.status === 'canceled' 
+                        ? `Canceled: ${subscription.canceledAt ? new Date(subscription.canceledAt).toLocaleDateString() : 'N/A'}`
+                        : `Ended: ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
+                      }
+                    </span>
+                    <span className="mx-2">•</span>
+                    <span>Duration: {new Date(subscription.startDate).toLocaleDateString()} - {subscription.canceledAt ? new Date(subscription.canceledAt).toLocaleDateString() : new Date(subscription.currentPeriodEnd).toLocaleDateString()}</span>
+                  </div>
                 </div>
-              ))}
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleReactivateSubscription(subscription.id)}
+                >
+                  <Play className="h-4 w-4 mr-1" />
+                  Reactivate
+                </Button>
+              </div>
+            ))}
             
-            {mockSubscriptions.filter(sub => sub.status !== 'active').length === 0 && (
+            {inactiveSubscriptions.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
                 No subscription history found
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Subscription Summary</CardTitle>
+          <CardDescription>
+            Overview of subscription metrics
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {activeSubscriptions.length}
+              </div>
+              <div className="text-sm text-muted-foreground">Active</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-600">
+                {subscriptions?.length || 0}
+              </div>
+              <div className="text-sm text-muted-foreground">Total</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                ${profile?.totalSpent?.toFixed(2) || '0.00'}
+              </div>
+              <div className="text-sm text-muted-foreground">Total Spent</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                ${activeSubscriptions.reduce((sum, sub) => sum + (sub.amount / 100), 0).toFixed(2)}
+              </div>
+              <div className="text-sm text-muted-foreground">Monthly Revenue</div>
+            </div>
           </div>
         </CardContent>
       </Card>

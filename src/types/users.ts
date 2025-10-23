@@ -25,11 +25,8 @@ export interface Address {
 }
 
 export interface UserPreferences {
-  notifications: {
-    email: boolean;
-    sms: boolean;
-    push: boolean;
-  };
+  emailNotifications: boolean;
+  smsNotifications: boolean;
   language: string;
   timezone: string;
 }
@@ -66,4 +63,27 @@ export interface UserActivity {
   timestamp: string;
   ipAddress?: string;
   userAgent?: string;
+}
+
+export interface CreateUserDto {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  company?: string;
+  address?: Address;
+  preferences?: Partial<UserPreferences>;
+}
+
+export interface UpdateUserDto {
+  email?: string;
+  password?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  company?: string;
+  address?: Address;
+  preferences?: Partial<UserPreferences>;
+  status?: 'active' | 'inactive' | 'suspended';
 }

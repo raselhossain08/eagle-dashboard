@@ -9,11 +9,82 @@ import { PlanPerformanceChart } from '@/components/billing/plan-performance-char
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TrendingUp, Users, DollarSign, TrendingDown, Calendar } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, TrendingDown, Calendar, RefreshCw } from 'lucide-react';
+
+import { useChurnAnalysis, usePlanPerformance, useSubscriptionAnalytics } from '@/hooks/use-billing';
+import { DateRange } from '@/types/billing';
 
 export default function SubscriptionAnalyticsPage() {
   const [dateRange, setDateRange] = useState('30d');
   const [metric, setMetric] = useState<'subscribers' | 'revenue' | 'churnRate'>('subscribers');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Calculate actual date range
+  const getDateRangeFromString = (range: string): DateRange => {
+    const to = new Date();
+    let from = new Date();
+    
+    switch (range) {
+      case '7d':
+        from.setDate(to.getDate() - 7);
+        break;
+      case '30d':
+        from.setDate(to.getDate() - 30);
+        break;
+      case '90d':
+        from.setDate(to.getDate() - 90);
+        break;
+      case '1y':
+        from.setFullYear(to.getFullYear() - 1);
+        break;
+      default:
+        from.setDate(to.getDate() - 30);
+    }
+    
+    return { from, to };
+  };
+
+  const actualDateRange = getDateRangeFromString(dateRange);
+  
+  // Disable automatic fetching and refetching
+  const { data: churnData, isLoading: churnLoading, refetch: refetchChurn } = useChurnAnalysis(actualDateRange, {
+    enabled: false, // Disable automatic fetching
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchInterval: false,
+  });
+  
+  const { data: planPerformanceData, isLoading: planLoading, refetch: refetchPlan } = usePlanPerformance(actualDateRange, {
+    enabled: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchInterval: false,
+  });
+  
+  const { data: subscriptionAnalytics, isLoading: analyticsLoading, refetch: refetchAnalytics } = useSubscriptionAnalytics(actualDateRange, {
+    enabled: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchInterval: false,
+  });
+
+  const isLoading = churnLoading || planLoading || analyticsLoading;
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refetchChurn(),
+        refetchPlan(),
+        refetchAnalytics(),
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -22,41 +93,23 @@ export default function SubscriptionAnalyticsPage() {
     { label: 'Analytics', href: '#', active: true }
   ];
 
-  // Mock data - replace with actual API calls
-  const churnData = [
-    { period: 'Jan', churnRate: 2.1, churnedMrr: 45000, churnedCustomers: 5 },
-    { period: 'Feb', churnRate: 1.8, churnedMrr: 38000, churnedCustomers: 4 },
-    { period: 'Mar', churnRate: 2.3, churnedMrr: 52000, churnedCustomers: 6 },
-    { period: 'Apr', churnRate: 1.9, churnedMrr: 41000, churnedCustomers: 4 },
-  ];
-
-  const planPerformanceData = [
-    { planName: 'Starter', subscribers: 45, revenue: 45000, churnRate: 2.1 },
-    { planName: 'Pro', subscribers: 28, revenue: 84000, churnRate: 1.4 },
-    { planName: 'Enterprise', subscribers: 12, revenue: 36000, churnRate: 0.8 },
-    { planName: 'Basic', subscribers: 65, revenue: 32500, churnRate: 2.8 },
-  ];
-
-  const analyticsStats = {
-    totalSubscribers: 150,
-    activeSubscribers: 142,
-    churnedThisMonth: 8,
-    growthRate: 12.5,
-    totalMrr: 197500,
-    averageLifetime: 18,
-    renewalRate: 95.2,
-    expansionMrr: 25000,
+  // Use real analytics data with fallbacks
+  const analyticsStats = (subscriptionAnalytics as any) || {
+    totalSubscribers: 0,
+    activeSubscribers: 0,
+    churnedThisMonth: 0,
+    growthRate: 0,
+    totalMrr: 0,
+    averageLifetime: 0,
+    renewalRate: 0,
+    expansionMrr: 0,
   };
+
+  // Check if data has been loaded
+  const hasData = subscriptionAnalytics !== undefined;
 
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar Navigation */}
-      <div className="hidden w-64 lg:block border-r">
-        <div className="p-6">
-          <BillingNavigation />
-        </div>
-      </div>
-
       {/* Main Content */}
       <BillingDashboardShell
         title="Subscription Analytics"
@@ -75,11 +128,39 @@ export default function SubscriptionAnalyticsPage() {
                 <SelectItem value="1y">Last year</SelectItem>
               </SelectContent>
             </Select>
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Loading...' : 'Refresh Data'}
+            </Button>
             <Button variant="outline">Export Report</Button>
           </div>
         }
       >
         <div className="space-y-6">
+          {/* Data Load Notice */}
+          {!hasData && !isLoading && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">
+                      Analytics data is ready to load
+                    </p>
+                    <p className="text-sm text-blue-700">
+                      Click "Refresh Data" button above to load the latest subscription analytics
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Key Metrics */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
@@ -137,7 +218,7 @@ export default function SubscriptionAnalyticsPage() {
 
           {/* Charts Grid */}
           <div className="grid gap-6 lg:grid-cols-2">
-            <ChurnAnalysisChart data={churnData} />
+            <ChurnAnalysisChart data={(churnData as any) || []} />
             
             <Card>
               <CardHeader>
@@ -157,7 +238,7 @@ export default function SubscriptionAnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <PlanPerformanceChart 
-                  data={planPerformanceData} 
+                  data={(planPerformanceData as any) || []} 
                   metric={metric}
                 />
               </CardContent>

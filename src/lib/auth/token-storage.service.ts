@@ -3,8 +3,8 @@ import { AuthService } from '@/lib/services/auth.service';
 import { CookiesService } from './cookies.service';
 
 export class TokenStorageService {
-  private static readonly ACCESS_TOKEN_KEY = 'accessToken';
-  private static readonly REFRESH_TOKEN_KEY = 'refreshToken';
+  private static readonly ACCESS_TOKEN_KEY = 'eagle_access_token';
+  private static readonly REFRESH_TOKEN_KEY = 'eagle_refresh_token';
   private static refreshTimeout: NodeJS.Timeout | null = null;
 
   static setTokens(accessToken: string, refreshToken: string): void {
@@ -92,6 +92,51 @@ export class TokenStorageService {
     if (this.refreshTimeout) {
       clearTimeout(this.refreshTimeout);
       this.refreshTimeout = null;
+    }
+  }
+
+  /**
+   * Migrate from old cookie names to new standardized names
+   */
+  static migrateLegacyCookies(): void {
+    if (typeof window !== 'undefined') {
+      // Check for legacy token names and migrate them
+      const legacyAccessToken = CookiesService.getCookie('accessToken');
+      const legacyRefreshToken = CookiesService.getCookie('refreshToken');
+      const legacyAdminToken = CookiesService.getCookie('admin_token');
+
+      // If we find legacy tokens, migrate them to the new format
+      if (legacyAccessToken && !CookiesService.getCookie(this.ACCESS_TOKEN_KEY)) {
+        CookiesService.setSessionToken(this.ACCESS_TOKEN_KEY, legacyAccessToken);
+        CookiesService.removeCookie('accessToken');
+      }
+
+      if (legacyRefreshToken && !CookiesService.getCookie(this.REFRESH_TOKEN_KEY)) {
+        CookiesService.setSecureToken(this.REFRESH_TOKEN_KEY, legacyRefreshToken, 7 * 24 * 60 * 60);
+        CookiesService.removeCookie('refreshToken');
+      }
+
+      // Clean up any admin_token or other legacy tokens
+      if (legacyAdminToken) {
+        CookiesService.removeCookie('admin_token');
+      }
+    }
+  }
+
+  /**
+   * Clean up all authentication-related cookies
+   */
+  static clearAllAuthCookies(): void {
+    if (typeof window !== 'undefined') {
+      // Clear current tokens
+      this.clearTokens();
+      
+      // Clear any legacy tokens
+      CookiesService.removeCookie('accessToken');
+      CookiesService.removeCookie('refreshToken');
+      CookiesService.removeCookie('admin_token');
+      
+      this.cancelTokenRefresh();
     }
   }
 }

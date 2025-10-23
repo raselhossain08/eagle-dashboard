@@ -1,20 +1,42 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { useTemplates } from '@/hooks/useNotifications';
+import { useTemplates, useUpdateTemplate } from '@/hooks/useNotifications';
 import TemplateEditor from '@/components/notifications/TemplateEditor';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UpdateTemplateDto } from '@/types/notifications';
+import { toast } from 'sonner';
 
 export default function EditTemplatePage() {
   const params = useParams();
+  const router = useRouter();
   const templateId = params.id as string;
   
   const { data: templates, isLoading } = useTemplates();
+  const updateTemplate = useUpdateTemplate();
   const template = templates?.find(t => t.id === templateId);
+
+  const handleSave = async (updatedData: UpdateTemplateDto) => {
+    try {
+      await updateTemplate.mutateAsync({ 
+        id: templateId, 
+        data: updatedData 
+      });
+      toast.success('Template updated successfully');
+      router.push('/dashboard/notifications/templates');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update template');
+    }
+  };
+
+  const handlePreview = (content: string) => {
+    console.log('Preview content:', content);
+    // TODO: Implement preview functionality
+  };
 
   if (isLoading) {
     return (
@@ -87,9 +109,9 @@ export default function EditTemplatePage() {
 
       <TemplateEditor 
         template={template} 
-        onSave={(updatedTemplate) => {
-          console.log('Template updated:', updatedTemplate);
-        }} 
+        onSave={handleSave}
+        onPreview={handlePreview}
+        isSaving={updateTemplate.isPending}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 // lib/api/support.ts
+import { apiClient } from './client';
 import { 
   SupportNote, 
   ImpersonationSession, 
@@ -14,108 +15,82 @@ import {
 } from '@/types/support';
 
 class SupportService {
-  private baseUrl = '/api/support';
+  private baseUrl = '/support';
 
   // Support notes
   async createSupportNote(data: CreateSupportNoteDto): Promise<SupportNote> {
-    const response = await fetch(`${this.baseUrl}/notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to create support note');
-    return response.json();
+    return apiClient.post<SupportNote>(`${this.baseUrl}/notes`, data);
   }
 
   async getUserSupportNotes(userId: string, params?: any): Promise<NotesResponse> {
-    const queryParams = new URLSearchParams(params).toString();
-    const response = await fetch(`${this.baseUrl}/notes/user/${userId}?${queryParams}`);
-    if (!response.ok) throw new Error('Failed to fetch user support notes');
-    return response.json();
+    return apiClient.get<NotesResponse>(`${this.baseUrl}/notes/user/${userId}`, params);
   }
 
   async updateSupportNote(id: string, data: UpdateSupportNoteDto): Promise<SupportNote> {
-    const response = await fetch(`${this.baseUrl}/notes/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to update support note');
-    return response.json();
+    return apiClient.put<SupportNote>(`${this.baseUrl}/notes/${id}`, data);
   }
 
   async searchSupportNotes(query: string, params?: any): Promise<NotesResponse> {
-    const searchParams = new URLSearchParams({ query, ...params }).toString();
-    const response = await fetch(`${this.baseUrl}/notes-management/search?${searchParams}`);
-    if (!response.ok) throw new Error('Failed to search support notes');
-    return response.json();
+    return apiClient.get<NotesResponse>(`${this.baseUrl}/notes-management/search`, { query, ...params });
   }
 
   // User impersonation
   async startImpersonation(data: ImpersonateUserDto): Promise<{ session: ImpersonationSession; token: string }> {
-    const response = await fetch(`${this.baseUrl}/impersonation/start`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to start impersonation');
-    return response.json();
+    return apiClient.post<{ session: ImpersonationSession; token: string }>(`${this.baseUrl}/impersonation/start`, data);
   }
 
   async endImpersonation(logId: string, reason?: string): Promise<ImpersonationSession> {
-    const response = await fetch(`${this.baseUrl}/impersonation/end/${logId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason }),
-    });
-    if (!response.ok) throw new Error('Failed to end impersonation');
-    return response.json();
+    return apiClient.post<ImpersonationSession>(`${this.baseUrl}/impersonation/end/${logId}`, { reason });
   }
 
   async getActiveImpersonations(): Promise<ImpersonationSession[]> {
-    const response = await fetch(`${this.baseUrl}/impersonation/active`);
-    if (!response.ok) throw new Error('Failed to fetch active impersonations');
-    return response.json();
+    return apiClient.get<ImpersonationSession[]>(`${this.baseUrl}/impersonation/active`);
   }
 
   async getImpersonationHistory(params?: any): Promise<HistoryResponse> {
-    const queryParams = new URLSearchParams(params).toString();
-    const response = await fetch(`${this.baseUrl}/impersonation/history?${queryParams}`);
-    if (!response.ok) throw new Error('Failed to fetch impersonation history');
-    return response.json();
+    return apiClient.get<HistoryResponse>(`${this.baseUrl}/impersonation/history`, params);
   }
 
   // Saved replies
   async createSavedReply(data: CreateSavedReplyDto): Promise<SavedReply> {
-    const response = await fetch(`${this.baseUrl}/saved-replies`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to create saved reply');
-    return response.json();
+    return apiClient.post<SavedReply>(`${this.baseUrl}/saved-replies`, data);
   }
 
   async getSavedReplies(params?: any): Promise<SavedReply[]> {
-    const queryParams = new URLSearchParams(params).toString();
-    const response = await fetch(`${this.baseUrl}/saved-replies?${queryParams}`);
-    if (!response.ok) throw new Error('Failed to fetch saved replies');
-    return response.json();
+    return apiClient.get<SavedReply[]>(`${this.baseUrl}/saved-replies`, params);
   }
 
   async useSavedReply(id: string): Promise<SavedReply> {
-    const response = await fetch(`${this.baseUrl}/saved-replies/${id}/use`, {
-      method: 'POST',
-    });
-    if (!response.ok) throw new Error('Failed to use saved reply');
-    return response.json();
+    return apiClient.post<SavedReply>(`${this.baseUrl}/saved-replies/${id}/use`);
   }
 
   // Analytics
   async getSupportStats(): Promise<SupportStats> {
-    const response = await fetch(`${this.baseUrl}/stats`);
-    if (!response.ok) throw new Error('Failed to fetch support stats');
-    return response.json();
+    return apiClient.get<SupportStats>(`${this.baseUrl}/stats`);
+  }
+
+  async getSupportAnalytics(params?: { startDate?: string; endDate?: string }): Promise<any> {
+    return apiClient.get<any>(`${this.baseUrl}/analytics/performance`, params);
+  }
+
+  async getTeamPerformance(params?: { startDate?: string; endDate?: string }): Promise<any> {
+    return apiClient.get<any>(`${this.baseUrl}/analytics/team-performance`, params);
+  }
+
+  async getResponseTimeAnalytics(days: number = 7): Promise<any> {
+    return apiClient.get<any>(`${this.baseUrl}/analytics/response-times`, { days });
+  }
+
+  async getTicketVolumeAnalytics(months: number = 6): Promise<any> {
+    return apiClient.get<any>(`${this.baseUrl}/analytics/ticket-volume`, { months });
+  }
+
+  async getCategoryAnalytics(params?: { startDate?: string; endDate?: string }): Promise<any> {
+    return apiClient.get<any>(`${this.baseUrl}/analytics/categories`, params);
+  }
+
+  async generateReport(type: string, params?: { startDate?: string; endDate?: string }): Promise<any> {
+    return apiClient.get<any>(`${this.baseUrl}/reports/generate`, { type, ...params });
   }
 }
 

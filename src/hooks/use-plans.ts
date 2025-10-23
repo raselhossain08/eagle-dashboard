@@ -54,3 +54,27 @@ export const useDeletePlan = () => {
     },
   });
 };
+
+export const useTogglePlanStatus = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => 
+      plansService.togglePlanStatus(id, isActive),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+    },
+  });
+};
+
+export const useTogglePlanVisibility = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, isVisible }: { id: string; isVisible: boolean }) => 
+      plansService.togglePlanVisibility(id, isVisible),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+    },
+  });
+};

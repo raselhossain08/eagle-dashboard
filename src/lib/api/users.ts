@@ -1,147 +1,152 @@
 // lib/api/users.ts
-import { User, UsersResponse, UsersParams } from '@/types/users';
-
-// Mock data for demonstration
-const mockUsers: User[] = Array.from({ length: 50 }, (_, i) => ({
-  id: `user-${i + 1}`,
-  email: `user${i + 1}@example.com`,
-  firstName: `FirstName${i + 1}`,
-  lastName: `LastName${i + 1}`,
-  status: i % 3 === 0 ? 'active' : i % 3 === 1 ? 'inactive' : 'suspended',
-  emailVerified: i % 4 !== 0,
-  phone: i % 2 === 0 ? `+1-555-${String(i + 1).padStart(4, '0')}` : undefined,
-  company: i % 3 === 0 ? `Company ${Math.floor(i / 3) + 1}` : undefined,
-  preferences: {
-    notifications: {
-      email: true,
-      sms: i % 2 === 0,
-      push: i % 3 === 0,
-    },
-    language: 'en',
-    timezone: 'UTC',
-  },
-  kycStatus: i % 3 === 0 ? 'verified' : i % 3 === 1 ? 'pending' : 'rejected',
-  createdAt: new Date(Date.now() - i * 86400000).toISOString(),
-  updatedAt: new Date(Date.now() - i * 43200000).toISOString(),
-  lastLogin: i % 5 !== 0 ? new Date(Date.now() - i * 3600000).toISOString() : undefined,
-}));
+import { User, UsersResponse, CreateUserDto, UpdateUserDto } from '@/types/users';
 
 export class UsersService {
-  static async getUsers(params: UsersParams = {}): Promise<UsersResponse> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+  // Default to backend configuration used by eagle-backend (port 5000, apiPrefix /api/v1)
+  // Production should override this via NEXT_PUBLIC_API_URL
+  private static baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-    const {
-      page = 1,
-      pageSize = 10,
-      search = '',
-      status = '',
-      kycStatus = '',
-      sort = 'createdAt_desc',
-    } = params;
+  private static getAuthHeaders() {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    };
+  }
 
-    let filteredUsers = [...mockUsers];
+  static async getUsers(params: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: string;
+    sort?: string;
+  } = {}): Promise<UsersResponse> {
+    const queryParams = new URLSearchParams();
+    
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.pageSize) queryParams.append('pageSize', params.pageSize.toString());
+    if (params.search) queryParams.append('search', params.search);
+    if (params.status) queryParams.append('status', params.status);
 
-    // Apply search filter
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filteredUsers = filteredUsers.filter(user =>
-        user.email.toLowerCase().includes(searchLower) ||
-        user.firstName.toLowerCase().includes(searchLower) ||
-        user.lastName.toLowerCase().includes(searchLower) ||
-        user.company?.toLowerCase().includes(searchLower)
-      );
-    }
-
-    // Apply status filter
-    if (status) {
-      filteredUsers = filteredUsers.filter(user => user.status === status);
-    }
-
-    // Apply KYC status filter
-    if (kycStatus) {
-      filteredUsers = filteredUsers.filter(user => user.kycStatus === kycStatus);
-    }
-
-    // Apply sorting
-    const [sortField, sortOrder] = sort.split('_');
-    filteredUsers.sort((a, b) => {
-      let aValue: any = a[sortField as keyof User];
-      let bValue: any = b[sortField as keyof User];
-
-      if (sortField === 'name') {
-        aValue = `${a.firstName} ${a.lastName}`;
-        bValue = `${b.firstName} ${b.lastName}`;
-      }
-
-      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
+    const response = await fetch(`${this.baseURL}/users?${queryParams}`, {
+      headers: this.getAuthHeaders(),
     });
 
-    // Apply pagination
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to fetch users');
+    }
 
+    const data = await response.json();
+    
+    // Transform backend response to match frontend interface
     return {
-      users: paginatedUsers,
-      totalCount: filteredUsers.length,
-      page,
-      pageSize,
-      totalPages: Math.ceil(filteredUsers.length / pageSize),
+      users: data.data || [],
+      totalCount: data.meta?.total || 0,
+      page: data.meta?.page || 1,
+      pageSize: data.meta?.limit || 10,
+      totalPages: data.meta?.totalPages || 0,
     };
   }
 
   static async getUser(id: string): Promise<User> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const user = mockUsers.find(u => u.id === id);
-    if (!user) {
-      throw new Error('User not found');
+    const response = await fetch(`${this.baseURL}/users/${id}`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to fetch user');
     }
-    return user;
+
+    return response.json();
   }
 
-  static async createUser(data: Partial<User>): Promise<User> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const newUser: User = {
-      id: `user-${mockUsers.length + 1}`,
-      email: data.email || '',
-      firstName: data.firstName || '',
-      lastName: data.lastName || '',
-      status: 'active',
-      emailVerified: false,
-      preferences: {
-        notifications: { email: true, sms: false, push: false },
-        language: 'en',
-        timezone: 'UTC',
-      },
-      kycStatus: 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      ...data,
-    };
-    
-    mockUsers.unshift(newUser);
-    return newUser;
+  static async createUser(data: CreateUserDto): Promise<User> {
+    const response = await fetch(`${this.baseURL}/users`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to create user');
+    }
+
+    return response.json();
   }
 
-  static async updateUser(id: string, data: Partial<User>): Promise<User> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const userIndex = mockUsers.findIndex(u => u.id === id);
-    if (userIndex === -1) {
-      throw new Error('User not found');
+  static async updateUser(id: string, data: UpdateUserDto): Promise<User> {
+    const response = await fetch(`${this.baseURL}/users/${id}`, {
+      method: 'PATCH',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to update user');
     }
-    
-    mockUsers[userIndex] = {
-      ...mockUsers[userIndex],
-      ...data,
-      updatedAt: new Date().toISOString(),
-    };
-    
-    return mockUsers[userIndex];
+
+    return response.json();
+  }
+
+  static async updateUserStatus(id: string, status: string): Promise<User> {
+    const response = await fetch(`${this.baseURL}/users/${id}/status`, {
+      method: 'PATCH',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ status }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to update user status');
+    }
+
+    return response.json();
+  }
+
+  static async deleteUser(id: string): Promise<void> {
+    const response = await fetch(`${this.baseURL}/users/${id}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to delete user');
+    }
+  }
+
+  static async getUserMetrics(): Promise<{
+    totalUsers: number;
+    activeUsers: number;
+    newUsersToday: number;
+    userGrowthRate: number;
+  }> {
+    const response = await fetch(`${this.baseURL}/users/metrics`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to fetch user metrics');
+    }
+
+    return response.json();
+  }
+
+  static async getUserAnalytics(timeRange: string = '30d'): Promise<any> {
+    const response = await fetch(`${this.baseURL}/analytics/users?timeRange=${timeRange}`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to fetch user analytics');
+    }
+
+    return response.json();
   }
 }

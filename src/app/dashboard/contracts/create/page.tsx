@@ -5,21 +5,22 @@ import { ContractsDashboardShell } from '@/components/contracts/contracts-dashbo
 import { ContractCreationWizard } from '@/components/contracts/contract-creation-wizard'
 import { useTemplates } from '@/hooks/use-templates'
 import { useCreateContract } from '@/hooks/use-contracts'
+import { useCustomers } from '@/hooks/use-customers'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { CreateContractDto } from '@/lib/types/contracts'
-
-// Mock customers data - in real app, this would come from API
-const mockCustomers = [
-  { id: '1', name: 'John Doe', email: 'john@example.com' },
-  { id: '2', name: 'Jane Smith', email: 'jane@example.com' },
-  { id: '3', name: 'Acme Corp', email: 'contact@acme.com' },
-]
+import { toast } from 'sonner'
 
 export default function CreateContractPage() {
   const [showWizard, setShowWizard] = useState(false)
+  const router = useRouter()
+  
   const { data: templatesResponse, isLoading: templatesLoading } = useTemplates({})
+  const { data: customersResponse, isLoading: customersLoading } = useCustomers({ 
+    pageSize: 100 // Get more customers for the dropdown
+  })
   const createContract = useCreateContract()
 
   const breadcrumbs = [
@@ -30,20 +31,29 @@ export default function CreateContractPage() {
 
   const handleCreateContract = async (data: CreateContractDto) => {
     try {
-      await createContract.mutateAsync(data)
+      const result = await createContract.mutateAsync(data)
       setShowWizard(false)
-      // In real app, would navigate to the new contract
+      toast.success('Contract created successfully!')
+      // Navigate to the new contract
+      router.push(`/dashboard/contracts/list/${result.id}`)
     } catch (error) {
       console.error('Failed to create contract:', error)
+      toast.error('Failed to create contract. Please try again.')
     }
   }
 
-  const handlePreviewTemplate = (content: string, variables: Record<string, any>) => {
-    // Implement preview logic
-    console.log('Preview:', { content, variables })
+  const handleTemplateSelect = (templateId: string) => {
+    const selectedTemplate = mappedTemplates.find(t => t.id === templateId)
+    if (selectedTemplate) {
+      setShowWizard(true)
+    } else {
+      toast.error('Template not found. Please try again.')
+    }
   }
 
-  if (templatesLoading) {
+  const isLoading = templatesLoading || customersLoading
+
+  if (isLoading) {
     return (
       <ContractsDashboardShell
         title="Create Contract"
@@ -56,6 +66,34 @@ export default function CreateContractPage() {
       </ContractsDashboardShell>
     )
   }
+
+  // Map templates to match the expected interface
+  const mappedTemplates = templatesResponse?.data.map(template => ({
+    ...template,
+    category: template.type || 'standard'
+  })) || []
+
+  // Map customers to expected format
+  const mappedCustomers = customersResponse?.data.map(customer => ({
+    id: customer.id,
+    email: customer.email,
+    firstName: customer.firstName || '',
+    lastName: customer.lastName || '',
+    status: (customer as any).status || 'active' as const,
+    emailVerified: (customer as any).emailVerified || false,
+    phone: (customer as any).phone,
+    company: (customer as any).company,
+    address: (customer as any).address,
+    preferences: (customer as any).preferences || {
+      notifications: { email: true, sms: false, push: false },
+      language: 'en',
+      timezone: 'UTC'
+    },
+    kycStatus: (customer as any).kycStatus || 'pending' as const,
+    createdAt: (customer as any).createdAt || new Date().toISOString(),
+    updatedAt: (customer as any).updatedAt || new Date().toISOString(),
+    lastLogin: (customer as any).lastLogin
+  })) || []
 
   return (
     <>
@@ -75,11 +113,11 @@ export default function CreateContractPage() {
         <div className="max-w-4xl mx-auto">
           {/* Template Selection Grid */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {templatesResponse?.data.map((template) => (
+            {mappedTemplates.map((template) => (
               <div
                 key={template.id}
                 className="border rounded-lg p-6 hover:border-primary cursor-pointer transition-colors"
-                onClick={() => setShowWizard(true)}
+                onClick={() => handleTemplateSelect(template.id)}
               >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold">{template.name}</h3>
@@ -101,7 +139,7 @@ export default function CreateContractPage() {
           </div>
 
           {/* Empty State */}
-          {templatesResponse?.data.length === 0 && (
+          {mappedTemplates.length === 0 && (
             <div className="text-center py-12">
               <div className="text-muted-foreground mb-4">
                 No templates available. Create a template first.
@@ -119,10 +157,9 @@ export default function CreateContractPage() {
       {/* Contract Creation Wizard */}
       {showWizard && (
         <ContractCreationWizard
-          templates={templatesResponse?.data || []}
-          customers={mockCustomers}
+          templates={mappedTemplates}
+          customers={mappedCustomers}
           onSubmit={handleCreateContract}
-          onPreview={handlePreviewTemplate}
           onCancel={() => setShowWizard(false)}
           isLoading={createContract.isPending}
           open={showWizard}

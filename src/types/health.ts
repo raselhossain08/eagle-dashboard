@@ -14,6 +14,7 @@ export interface SystemMetrics {
     rss: number;
     total: number;
     used: number;
+    usagePercentage?: number;
   };
   disk: {
     total: number;

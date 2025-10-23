@@ -59,3 +59,19 @@ export const useContractMetrics = (dateRange: DateRange) => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
+
+export const useDownloadContract = () => {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const blob = await contractsService.downloadContract(id)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `contract-${id}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    },
+  })
+}

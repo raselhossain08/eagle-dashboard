@@ -38,11 +38,15 @@ export interface ImpersonationSession {
 
 export interface SavedReply {
   id: string;
-  title: string;
+  name: string;
+  description?: string;
+  subject: string;
   content: string;
   category: string;
   tags: string[];
-  useCount: number;
+  variables?: Record<string, string>;
+  isActive: boolean;
+  usageCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -104,10 +108,14 @@ export interface ImpersonateUserDto {
 }
 
 export interface CreateSavedReplyDto {
-  title: string;
+  name: string;
+  description?: string;
+  subject: string;
   content: string;
-  category: string;
-  tags: string[];
+  category?: string;
+  tags?: string[];
+  variables?: Record<string, string>;
+  isActive?: boolean;
 }
 
 // Response types

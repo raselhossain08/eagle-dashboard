@@ -1,74 +1,52 @@
-import { AuditLog, AuditQueryParams, AuditLogsResponse, AdminActivitySummary, SystemHealthData, RiskAssessmentData, ActivityOverviewData } from '@/types/audit';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-
-class ApiClient {
-  private async fetch(url: string, options: RequestInit = {}) {
-    const response = await fetch(`${API_BASE_URL}${url}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      ...options,
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  async get(url: string) {
-    return this.fetch(url);
-  }
-
-  async post(url: string, data: any) {
-    return this.fetch(url, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async delete(url: string) {
-    return this.fetch(url, {
-      method: 'DELETE',
-    });
-  }
-}
+import { AuditLog, AuditQueryParams, AuditLogsResponse, AdminActivitySummary, SystemHealthData, RiskAssessmentData, ActivityOverviewData, PredictiveInsightData, CorrelationData, BehavioralData, AnomalyResponse, SessionData, ComplianceData } from '@/types/audit';
+import { apiClient } from '@/lib/api/client';
+import { AuthCookieService } from '@/lib/auth/cookie-service';
 
 export class AuditService {
-  constructor(private client: ApiClient = new ApiClient()) {}
 
   // Core audit operations
   async getAuditLogs(params: AuditQueryParams): Promise<AuditLogsResponse> {
-    const queryParams = new URLSearchParams();
+    const queryParams: Record<string, any> = {};
     
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        if (value instanceof Date) {
-          queryParams.append(key, value.toISOString());
-        } else {
-          queryParams.append(key, value.toString());
-        }
-      }
-    });
+    // Transform frontend params to backend format
+    if (params.page !== undefined) queryParams.page = params.page;
+    if (params.limit !== undefined) queryParams.limit = params.limit;
+    if (params.adminUserId) queryParams.adminUserId = params.adminUserId;
+    if (params.action) queryParams.action = params.action;
+    if (params.resourceType) queryParams.resourceType = params.resourceType;
+    if (params.resourceId) queryParams.resourceId = params.resourceId;
+    if (params.status) queryParams.status = params.status;
+    
+    // Handle date filters
+    if (params.startDate) {
+      queryParams.startDate = params.startDate instanceof Date 
+        ? params.startDate.toISOString() 
+        : params.startDate;
+    }
+    if (params.endDate) {
+      queryParams.endDate = params.endDate instanceof Date 
+        ? params.endDate.toISOString() 
+        : params.endDate;
+    }
+    
+    // Note: Backend doesn't support sortBy/sortOrder, it sorts by timestamp desc by default
+    // Note: Backend doesn't support search parameter
 
-    return this.client.get(`/audit?${queryParams}`);
+    return apiClient.get<AuditLogsResponse>('/audit', queryParams);
   }
 
   async getAuditLogById(id: string): Promise<AuditLog> {
-    return this.client.get(`/audit/${id}`);
+    return apiClient.get<AuditLog>(`/audit/${id}`);
   }
 
   async getResourceAudit(resourceType: string, resourceId: string): Promise<AuditLog[]> {
-    return this.client.get(`/audit/resource/${resourceType}/${resourceId}`);
+    return apiClient.get<AuditLog[]>(`/audit/resource/${resourceType}/${resourceId}`);
   }
 
   // Admin activity
   async getAdminActivity(adminUserId: string, days?: number): Promise<AuditLog[]> {
-    const queryParams = days ? `?days=${days}` : '';
-    return this.client.get(`/audit/admin/${adminUserId}${queryParams}`);
+    const params = days ? { days } : {};
+    return apiClient.get<AuditLog[]>(`/audit/admin/${adminUserId}`, params);
   }
 
   async getAdminActivitySummary(dateRange: { from: Date; to: Date }): Promise<AdminActivitySummary[]> {
@@ -76,13 +54,13 @@ export class AuditService {
       from: dateRange.from.toISOString(),
       to: dateRange.to.toISOString(),
     });
-    return this.client.get(`/audit/admin-activity/summary?${queryParams}`);
+    return apiClient.get(`/audit/admin-activity/summary?${queryParams}`);
   }
 
   // System activity
   async getSystemActivity(days?: number): Promise<any[]> {
     const queryParams = days ? `?days=${days}` : '';
-    return this.client.get(`/audit/system/activity${queryParams}`);
+    return apiClient.get(`/audit/system/activity${queryParams}`);
   }
 
   async getSystemHealthMetrics(dateRange: { from: Date; to: Date }): Promise<SystemHealthData> {
@@ -90,7 +68,7 @@ export class AuditService {
       from: dateRange.from.toISOString(),
       to: dateRange.to.toISOString(),
     });
-    return this.client.get(`/audit/system/health?${queryParams}`);
+    return apiClient.get(`/audit/system/health?${queryParams}`);
   }
 
   // Analytics and insights
@@ -99,7 +77,7 @@ export class AuditService {
       from: dateRange.from.toISOString(),
       to: dateRange.to.toISOString(),
     });
-    return this.client.get(`/audit/analytics/overview?${queryParams}`);
+    return apiClient.get(`/audit/analytics/overview?${queryParams}`);
   }
 
   async getActivityTrends(params: { groupBy: 'hour' | 'day' | 'week' | 'month'; dateRange: { from: Date; to: Date } }): Promise<any[]> {
@@ -108,7 +86,7 @@ export class AuditService {
       from: params.dateRange.from.toISOString(),
       to: params.dateRange.to.toISOString(),
     });
-    return this.client.get(`/audit/analytics/trends?${queryParams}`);
+    return apiClient.get(`/audit/analytics/trends?${queryParams}`);
   }
 
   async getRiskAssessment(dateRange: { from: Date; to: Date }): Promise<RiskAssessmentData> {
@@ -116,52 +94,52 @@ export class AuditService {
       from: dateRange.from.toISOString(),
       to: dateRange.to.toISOString(),
     });
-    return this.client.get(`/audit/analytics/risk-assessment?${queryParams}`);
+    return apiClient.get(`/audit/analytics/risk-assessment?${queryParams}`);
   }
 
   // Advanced Analytics
-  async getPredictiveInsights(dateRange: { from: Date; to: Date }): Promise<any> {
+  async getPredictiveInsights(dateRange: { from: Date; to: Date }): Promise<PredictiveInsightData[]> {
     const queryParams = new URLSearchParams({
       from: dateRange.from.toISOString(),
       to: dateRange.to.toISOString(),
     });
-    return this.client.get(`/audit/analytics/predictive?${queryParams}`);
+    return apiClient.get(`/audit/analytics/predictive?${queryParams}`);
   }
 
-  async getCorrelationAnalysis(dateRange: { from: Date; to: Date }): Promise<any> {
+  async getCorrelationAnalysis(dateRange: { from: Date; to: Date }): Promise<CorrelationData[]> {
     const queryParams = new URLSearchParams({
       from: dateRange.from.toISOString(),
       to: dateRange.to.toISOString(),
     });
-    return this.client.get(`/audit/analytics/correlation?${queryParams}`);
+    return apiClient.get(`/audit/analytics/correlation?${queryParams}`);
   }
 
-  async getBehavioralAnalysis(dateRange: { from: Date; to: Date }): Promise<any> {
+  async getBehavioralAnalysis(dateRange: { from: Date; to: Date }): Promise<BehavioralData[]> {
     const queryParams = new URLSearchParams({
       from: dateRange.from.toISOString(),
       to: dateRange.to.toISOString(),
     });
-    return this.client.get(`/audit/analytics/behavioral?${queryParams}`);
+    return apiClient.get(`/audit/analytics/behavioral?${queryParams}`);
   }
 
   // Security Features
-  async getAnomalies(dateRange: { from: Date; to: Date }): Promise<any> {
+  async getAnomalies(dateRange: { from: Date; to: Date }): Promise<AnomalyResponse> {
     const queryParams = new URLSearchParams({
       from: dateRange.from.toISOString(),
       to: dateRange.to.toISOString(),
     });
-    return this.client.get(`/audit/security/anomalies?${queryParams}`);
+    return apiClient.get(`/audit/security/anomalies?${queryParams}`);
   }
 
-  async getSessions(activeOnly: boolean = true): Promise<any> {
+  async getSessions(activeOnly: boolean = true): Promise<SessionData[]> {
     const queryParams = activeOnly ? '?activeOnly=true' : '';
-    return this.client.get(`/audit/security/sessions${queryParams}`);
+    return apiClient.get(`/audit/security/sessions${queryParams}`);
   }
 
   // Compliance
-  async getComplianceData(standard?: string): Promise<any> {
+  async getComplianceData(standard?: string): Promise<ComplianceData> {
     const queryParams = standard ? `?standard=${standard}` : '';
-    return this.client.get(`/audit/compliance${queryParams}`);
+    return apiClient.get(`/audit/compliance${queryParams}`);
   }
 
   // Export functionality
@@ -178,29 +156,52 @@ export class AuditService {
       }
     });
 
-    const response = await fetch(`${API_BASE_URL}/audit/export?${queryParams}`);
-    return response.blob();
+    return apiClient.download(`/audit/export?${queryParams}`);
   }
 
   // Bulk Operations
   async bulkDeleteLogs(logIds: string[]): Promise<{ deletedCount: number }> {
-    return this.client.post('/audit/bulk/delete', { logIds });
+    return apiClient.post('/audit/bulk/delete', { logIds });
   }
 
   async bulkExportLogs(logIds: string[]): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}/audit/bulk/export`, {
+    return apiClient.download('/audit/bulk/export', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ logIds }),
+      data: { logIds }
     });
-    return response.blob();
+  }
+
+  // Filter options
+  async getFilterOptions(): Promise<{
+    adminUsers: { id: string; email: string; role: string }[];
+    actions: string[];
+    resourceTypes: string[];
+    statuses: string[];
+  }> {
+    return apiClient.get('/audit/filters/options');
+  }
+
+  // Resource utilities
+  async getResourceTypes(): Promise<{ types: string[]; counts: Record<string, number> }> {
+    return apiClient.get('/audit/resources/types');
+  }
+
+  async searchResources(
+    type: string, 
+    query: string, 
+    limit: number = 10
+  ): Promise<{ resources: Array<{ id: string; lastModified: Date; actionCount: number }> }> {
+    const queryParams = new URLSearchParams({
+      type,
+      query,
+      limit: limit.toString()
+    });
+    return apiClient.get(`/audit/resources/search?${queryParams}`);
   }
 
   // Admin operations
   async cleanupOldLogs(retentionDays: number): Promise<{ deletedCount: number }> {
-    return this.client.delete(`/audit/cleanup/${retentionDays}`);
+    return apiClient.delete(`/audit/cleanup/${retentionDays}`);
   }
 }
 

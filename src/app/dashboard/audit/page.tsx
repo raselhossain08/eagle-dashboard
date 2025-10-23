@@ -9,107 +9,225 @@ import { PredictiveInsights } from '@/components/audit/predictive-insights';
 import { CorrelationAnalysis } from '@/components/audit/correlation-analysis';
 import { BehavioralAnalysis } from '@/components/audit/behavioral-analysis';
 import { AnomalyDetection } from '@/components/audit/anomaly-detection';
-import { useActivityOverview, useActivityTrends, useRiskAssessment } from '@/hooks/use-audit';
+import { 
+  useActivityOverview, 
+  useActivityTrends, 
+  useRiskAssessment,
+  usePredictiveInsights,
+  useCorrelationAnalysis,
+  useBehavioralAnalysis,
+  useAnomalies,
+  useSessions
+} from '@/hooks/use-audit';
 import { useAuditStore } from '@/store/audit-store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { AnomalyData, AnomalyResponse, SessionData } from '@/types/audit';
+import { useCallback } from 'react';
 
-// Mock data for new components
-const mockPredictiveData = [
-  { date: '2024-01', actual: 1200, predicted: 1250, confidence: 85 },
-  { date: '2024-02', actual: 1350, predicted: 1300, confidence: 78 },
-  { date: '2024-03', actual: 1400, predicted: 1450, confidence: 92 },
-  { date: '2024-04', actual: 1550, predicted: 1500, confidence: 88 },
-  { date: '2024-05', actual: 1600, predicted: 1650, confidence: 91 },
-];
-
-const mockCorrelationData = [
-  { action1: 'user.create', action2: 'role.assign', correlation: 0.85, frequency: 245, significance: 'high' },
-  { action1: 'subscription.update', action2: 'payment.process', correlation: 0.72, frequency: 189, significance: 'high' },
-  { action1: 'permission.grant', action2: 'access.review', correlation: 0.68, frequency: 156, significance: 'medium' },
-  { action1: 'user.delete', action2: 'data.cleanup', correlation: 0.45, frequency: 89, significance: 'low' },
-];
-
-const mockBehavioralData = [
-  {
-    adminId: '1',
-    adminEmail: 'admin@company.com',
-    behaviorPattern: {
-      activityFrequency: 85,
-      riskScore: 25,
-      successRate: 98,
-      responseTime: 120,
-      anomalyScore: 15,
-    },
-    patterns: ['security-focused', 'consistent-timing'],
-    recommendations: ['Continue current monitoring', 'Consider advanced training']
-  },
-  {
-    adminId: '2',
-    adminEmail: 'manager@company.com',
-    behaviorPattern: {
-      activityFrequency: 65,
-      riskScore: 45,
-      successRate: 92,
-      responseTime: 180,
-      anomalyScore: 35,
-    },
-    patterns: ['moderate-frequency', 'variable-timing'],
-    recommendations: ['Review access patterns', 'Monitor for unusual activity']
-  }
-];
-
-const mockAnomalies = [
-  {
-    id: '1',
-    type: 'suspicious_login',
-    severity: 'high',
-    title: 'Unusual login location detected',
-    description: 'Admin login from unexpected geographic location',
-    timestamp: new Date('2024-01-15T14:30:00Z'),
-    adminEmail: 'admin@company.com',
-    ipAddress: '192.168.1.100',
-    location: 'Tokyo, Japan',
-    confidence: 87,
-    recommendations: [
-      'Verify login attempt',
-      'Check for compromised credentials',
-      'Enable 2FA if not already enabled'
-    ]
-  },
-  {
-    id: '2',
-    type: 'unusual_activity',
-    severity: 'medium',
-    title: 'Unusual activity pattern',
-    description: 'High frequency of permission changes outside normal hours',
-    timestamp: new Date('2024-01-15T03:00:00Z'),
-    adminEmail: 'manager@company.com',
-    confidence: 72,
-    recommendations: [
-      'Review permission changes',
-      'Verify business justification',
-      'Monitor for similar patterns'
-    ]
-  }
-];
+// Transform function to convert backend anomaly data to component format
+const transformAnomalyData = (data: AnomalyResponse | null): AnomalyData[] => {
+  if (!data) return [];
+  
+  const anomalies: AnomalyData[] = [];
+  
+  // Transform failure spikes
+  data.failureSpikes?.forEach((spike, index) => {
+    anomalies.push({
+      id: `failure-${index}`,
+      type: 'failed_attempts',
+      severity: spike.failureCount > 10 ? 'high' : 'medium',
+      title: 'Multiple Failed Attempts Detected',
+      description: `${spike.failureCount} failed attempts detected for admin ${spike._id.adminId}`,
+      timestamp: new Date(spike._id.date),
+      adminEmail: spike._id.adminId,
+      confidence: Math.min(spike.failureCount * 10, 100),
+      recommendations: [
+        'Review admin account security',
+        'Check for potential password attacks',
+        'Consider implementing account lockout policies'
+      ]
+    });
+  });
+  
+  // Transform unusual activity
+  data.unusualActivity?.forEach((activity, index) => {
+    anomalies.push({
+      id: `unusual-${index}`,
+      type: 'time_anomaly',
+      severity: activity.count > 100 ? 'high' : 'medium',
+      title: 'Unusual Activity Pattern',
+      description: `${activity.count} actions performed at hour ${activity._id.hour} by admin ${activity._id.adminId}`,
+      timestamp: new Date(),
+      adminEmail: activity._id.adminId,
+      confidence: Math.min(activity.count, 100),
+      recommendations: [
+        'Verify business justification for unusual timing',
+        'Monitor for similar patterns',
+        'Review admin work schedules'
+      ]
+    });
+  });
+  
+  // Transform suspicious patterns
+  data.suspiciousPatterns?.forEach((pattern, index) => {
+    anomalies.push({
+      id: `suspicious-${index}`,
+      type: 'geographic_anomaly',
+      severity: pattern.distinctIPs.length > 5 ? 'critical' : 'high',
+      title: 'Geographic Anomaly Detected',
+      description: `Admin ${pattern._id} accessing from ${pattern.distinctIPs.length} different IP addresses`,
+      timestamp: new Date(),
+      adminEmail: pattern._id,
+      confidence: Math.min(pattern.distinctIPs.length * 15, 100),
+      recommendations: [
+        'Verify all login locations',
+        'Check for compromised credentials',
+        'Enable geographic restrictions if possible'
+      ]
+    });
+  });
+  
+  return anomalies.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+};
 
 export default function AuditOverviewPage() {
   const { dateRange } = useAuditStore();
   
-  const { data: overviewData, isLoading: overviewLoading } = useActivityOverview(dateRange);
-  const { data: trendsData, isLoading: trendsLoading } = useActivityTrends({
+  // Disable automatic fetch - only manual refresh
+  const { data: overviewData, isLoading: overviewLoading, error: overviewError, refetch: refetchOverview } = useActivityOverview(dateRange, { 
+    enabled: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: 1,
+  });
+  const { data: trendsData, isLoading: trendsLoading, error: trendsError, refetch: refetchTrends } = useActivityTrends({
     groupBy: 'day',
     dateRange
+  }, { 
+    enabled: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: 1,
   });
-  const { data: riskData, isLoading: riskLoading } = useRiskAssessment(dateRange);
+  const { data: riskData, isLoading: riskLoading, error: riskError, refetch: refetchRisk } = useRiskAssessment(dateRange, { 
+    enabled: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: 1,
+  });
+  
+  // Advanced Analytics
+  const { data: predictiveData, isLoading: predictiveLoading, error: predictiveError, refetch: refetchPredictive } = usePredictiveInsights(dateRange, { 
+    enabled: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: 1,
+  });
+  const { data: correlationData, isLoading: correlationLoading, error: correlationError, refetch: refetchCorrelation } = useCorrelationAnalysis(dateRange, { 
+    enabled: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: 1,
+  });
+  const { data: behavioralData, isLoading: behavioralLoading, error: behavioralError, refetch: refetchBehavioral } = useBehavioralAnalysis(dateRange, { 
+    enabled: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: 1,
+  });
+  
+  // Security
+  const { data: anomaliesData, isLoading: anomaliesLoading, error: anomaliesError, refetch: refetchAnomalies } = useAnomalies(dateRange, { 
+    enabled: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: 1,
+  });
+  const { data: sessionsData, isLoading: sessionsLoading, error: sessionsError, refetch: refetchSessions } = useSessions(true, { 
+    enabled: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: 1,
+  });
+
+  // Manual refresh function
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([
+      refetchOverview(),
+      refetchTrends(),
+      refetchRisk(),
+      refetchPredictive(),
+      refetchCorrelation(),
+      refetchBehavioral(),
+      refetchAnomalies(),
+      refetchSessions(),
+    ]);
+  }, [refetchOverview, refetchTrends, refetchRisk, refetchPredictive, refetchCorrelation, refetchBehavioral, refetchAnomalies, refetchSessions]);
+
+  // Check if any data is loading
+  const isAnyLoading = overviewLoading || trendsLoading || riskLoading || predictiveLoading || correlationLoading || behavioralLoading || anomaliesLoading || sessionsLoading;
+
+  // Check if any data exists
+  const hasAnyData = overviewData || trendsData || riskData || predictiveData || correlationData || behavioralData || anomaliesData || sessionsData;
+
+  const renderError = (error: any, title: string) => (
+    <Alert>
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription>
+        Failed to load {title}: {error?.message || 'Unknown error'}
+      </AlertDescription>
+    </Alert>
+  );
 
   return (
     <AuditDashboardShell
       title="Audit Overview"
       description="Monitor system activity, security events, and compliance metrics"
     >
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex-1" />
+        <Button 
+          onClick={handleRefresh}
+          disabled={isAnyLoading}
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2"
+        >
+          <RotateCcw className={`h-4 w-4 ${isAnyLoading ? 'animate-spin' : ''}`} />
+          {isAnyLoading ? 'Loading...' : hasAnyData ? 'Refresh Data' : 'Load Data'}
+        </Button>
+      </div>
+
+      {/* Show message when no data is loaded yet */}
+      {!hasAnyData && !isAnyLoading && (
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <div className="text-lg font-medium text-muted-foreground mb-2">
+                No data loaded yet
+              </div>
+              <div className="text-sm text-muted-foreground mb-4">
+                Click the "Load Data" button to fetch the latest audit information
+              </div>
+              <Button 
+                onClick={handleRefresh}
+                variant="default"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Load Data
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -135,11 +253,17 @@ export default function AuditOverviewPage() {
                   </Card>
                 ))}
               </div>
-            ) : (
+            ) : overviewError ? (
+              renderError(overviewError, 'activity overview')
+            ) : overviewData && typeof overviewData === 'object' && 'totalLogs' in overviewData ? (
               <ActivityOverviewCards 
-                data={overviewData!} 
+                data={overviewData as any} 
                 dateRange={dateRange}
               />
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No overview data available
+              </div>
             )}
           </section>
 
@@ -155,9 +279,11 @@ export default function AuditOverviewPage() {
               <CardContent>
                 {trendsLoading ? (
                   <Skeleton className="h-[300px] w-full" />
+                ) : trendsError ? (
+                  renderError(trendsError, 'activity trends')
                 ) : (
                   <ActivityTrendsChart 
-                    data={trendsData || []}
+                    data={Array.isArray(trendsData) ? trendsData : []}
                     groupBy="day"
                   />
                 )}
@@ -174,9 +300,11 @@ export default function AuditOverviewPage() {
               <CardContent>
                 {overviewLoading ? (
                   <Skeleton className="h-[300px] w-full" />
+                ) : overviewError ? (
+                  renderError(overviewError, 'top actions')
                 ) : (
                   <TopActionsChart 
-                    data={overviewData?.topActions || []}
+                    data={overviewData && typeof overviewData === 'object' && 'topActions' in overviewData ? (overviewData as any).topActions : []}
                   />
                 )}
               </CardContent>
@@ -199,8 +327,14 @@ export default function AuditOverviewPage() {
                     <Skeleton className="h-4 w-full" />
                     <Skeleton className="h-4 w-3/4" />
                   </div>
+                ) : riskError ? (
+                  renderError(riskError, 'risk assessment')
+                ) : riskData && typeof riskData === 'object' && 'overallRiskScore' in riskData ? (
+                  <RiskAssessmentPanel data={riskData as any} />
                 ) : (
-                  <RiskAssessmentPanel data={riskData!} />
+                  <div className="text-center py-8 text-muted-foreground">
+                    No risk assessment data available
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -217,7 +351,13 @@ export default function AuditOverviewPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <PredictiveInsights data={mockPredictiveData} />
+              {predictiveLoading ? (
+                <Skeleton className="h-[300px] w-full" />
+              ) : predictiveError ? (
+                renderError(predictiveError, 'predictive insights')
+              ) : (
+                <PredictiveInsights data={Array.isArray(predictiveData) ? predictiveData : []} />
+              )}
             </CardContent>
           </Card>
 
@@ -230,7 +370,13 @@ export default function AuditOverviewPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <CorrelationAnalysis data={mockCorrelationData} />
+              {correlationLoading ? (
+                <Skeleton className="h-[300px] w-full" />
+              ) : correlationError ? (
+                renderError(correlationError, 'correlation analysis')
+              ) : (
+                <CorrelationAnalysis data={Array.isArray(correlationData) ? correlationData : []} />
+              )}
             </CardContent>
           </Card>
 
@@ -243,7 +389,13 @@ export default function AuditOverviewPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <BehavioralAnalysis data={mockBehavioralData} />
+              {behavioralLoading ? (
+                <Skeleton className="h-[300px] w-full" />
+              ) : behavioralError ? (
+                renderError(behavioralError, 'behavioral analysis')
+              ) : (
+                <BehavioralAnalysis data={Array.isArray(behavioralData) ? behavioralData : []} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -258,7 +410,19 @@ export default function AuditOverviewPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <AnomalyDetection anomalies={mockAnomalies} />
+              {anomaliesLoading ? (
+                <Skeleton className="h-[300px] w-full" />
+              ) : anomaliesError ? (
+                renderError(anomaliesError, 'anomaly detection')
+              ) : (
+                <AnomalyDetection 
+                  anomalies={transformAnomalyData(
+                    anomaliesData && typeof anomaliesData === 'object' && 'failureSpikes' in anomaliesData 
+                      ? anomaliesData as AnomalyResponse 
+                      : null
+                  )} 
+                />
+              )}
             </CardContent>
           </Card>
 
@@ -271,9 +435,54 @@ export default function AuditOverviewPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12 text-muted-foreground">
-                Session monitoring integration in progress...
-              </div>
+              {sessionsLoading ? (
+                <Skeleton className="h-[300px] w-full" />
+              ) : sessionsError ? (
+                renderError(sessionsError, 'session monitoring')
+              ) : (
+                <div className="space-y-4">
+                  {sessionsData && Array.isArray(sessionsData) && sessionsData.length > 0 ? (
+                    <div className="grid gap-4">
+                      {sessionsData.map((session: SessionData) => (
+                        <div key={session.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div>
+                            <p className="font-medium">{session.adminEmail}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {session.location} • {session.ipAddress}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              User Agent: {session.userAgent}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm">
+                              Active since {new Date(session.startTime).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Last activity: {new Date(session.lastActivity).toLocaleString()}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className={`w-2 h-2 rounded-full ${session.isActive ? 'bg-green-500' : 'bg-gray-400'}`}
+                              />
+                              <p className={`text-xs ${
+                                session.riskScore > 70 ? 'text-red-600' : 
+                                session.riskScore > 40 ? 'text-yellow-600' : 'text-green-600'
+                              }`}>
+                                Risk: {session.riskScore}%
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-muted-foreground">
+                      No active sessions found
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

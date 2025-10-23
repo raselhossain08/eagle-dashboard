@@ -3,7 +3,7 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-const growthData = [
+const defaultGrowthData = [
   { month: 'Jan', subscribers: 2400, newSubscribers: 140 },
   { month: 'Feb', subscribers: 2550, newSubscribers: 150 },
   { month: 'Mar', subscribers: 2680, newSubscribers: 130 },
@@ -18,10 +18,23 @@ const growthData = [
   { month: 'Dec', subscribers: 4050, newSubscribers: 170 },
 ];
 
-export function SubscriberGrowthChart() {
+interface SubscriberGrowthChartProps {
+  data?: any[];
+}
+
+export function SubscriberGrowthChart({ data }: SubscriberGrowthChartProps) {
+  // Transform API data to chart format if provided
+  const chartData = data && data.length > 0 
+    ? data.map((item: any, index: number) => ({
+        month: item._id || `Day ${index + 1}`,
+        subscribers: item.count || 0,
+        newSubscribers: item.count || 0,
+      }))
+    : defaultGrowthData;
+
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={growthData}>
+      <LineChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="month" />
         <YAxis />

@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2 } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { toast } from 'sonner';
 
 interface ReportField {
   id: string;
@@ -19,6 +21,9 @@ export function ReportBuilder() {
   const [reportName, setReportName] = useState('');
   const [fields, setFields] = useState<ReportField[]>([]);
   const [chartType, setChartType] = useState('bar');
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [previewData, setPreviewData] = useState<any[]>([]);
 
   const addField = () => {
     const newField: ReportField = {
@@ -40,9 +45,74 @@ export function ReportBuilder() {
     ));
   };
 
-  const handleSave = () => {
-    // Save report configuration
-    console.log('Saving report:', { reportName, fields, chartType });
+  const handlePreview = async () => {
+    if (fields.length === 0) {
+      toast.error('Please add at least one field to preview the report');
+      return;
+    }
+
+    try {
+      setIsPreviewMode(true);
+      
+      // Generate preview data based on selected fields
+      const mockData = fields.map(field => ({
+        metric: `${field.dataSource} ${field.metric}`,
+        value: Math.floor(Math.random() * 100000) + 10000,
+        aggregation: field.aggregation,
+      }));
+      
+      setPreviewData(mockData);
+      toast.success('Preview generated successfully');
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      toast.error('Failed to generate preview');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!reportName.trim()) {
+      toast.error('Please enter a report name');
+      return;
+    }
+
+    if (fields.length === 0) {
+      toast.error('Please add at least one field');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      const reportConfig = {
+        name: reportName,
+        fields,
+        chartType,
+        type: 'custom',
+        description: `Custom report with ${fields.length} metrics`,
+      };
+
+      const savedReport = await apiClient.post<{ id: string }>('/reports/custom', reportConfig);
+      
+      toast.success('Report saved successfully');
+      
+      // Reset form
+      setReportName('');
+      setFields([]);
+      setChartType('bar');
+      setIsPreviewMode(false);
+      setPreviewData([]);
+      
+      // Navigate to the saved report
+      setTimeout(() => {
+        window.location.href = `/dashboard/reports/custom/${savedReport.id}`;
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error saving report:', error);
+      toast.error('Failed to save report');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -103,6 +173,8 @@ export function ReportBuilder() {
                     <SelectItem value="revenue">Revenue</SelectItem>
                     <SelectItem value="users">Users</SelectItem>
                     <SelectItem value="subscriptions">Subscriptions</SelectItem>
+                    <SelectItem value="analytics">Analytics</SelectItem>
+                    <SelectItem value="billing">Billing</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -120,6 +192,8 @@ export function ReportBuilder() {
                     <SelectItem value="amount">Amount</SelectItem>
                     <SelectItem value="count">Count</SelectItem>
                     <SelectItem value="average">Average</SelectItem>
+                    <SelectItem value="total">Total</SelectItem>
+                    <SelectItem value="growth">Growth Rate</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -137,6 +211,8 @@ export function ReportBuilder() {
                     <SelectItem value="sum">Sum</SelectItem>
                     <SelectItem value="average">Average</SelectItem>
                     <SelectItem value="count">Count</SelectItem>
+                    <SelectItem value="max">Maximum</SelectItem>
+                    <SelectItem value="min">Minimum</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -162,10 +238,48 @@ export function ReportBuilder() {
           )}
         </div>
 
-        <div className="flex justify-end">
-          <Button onClick={handleSave}>
-            <Save className="w-4 h-4 mr-2" />
-            Save Report
+        {/* Preview Section */}
+        {isPreviewMode && previewData.length > 0 && (
+          <Card className="bg-muted/50">
+            <CardHeader>
+              <CardTitle className="text-sm">Preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {previewData.map((item, index) => (
+                  <div key={index} className="flex justify-between items-center p-2 bg-background rounded">
+                    <span className="font-medium">{item.metric}</span>
+                    <span className="text-muted-foreground">{item.value.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="flex gap-2 justify-end">
+          <Button 
+            variant="outline" 
+            onClick={handlePreview}
+            disabled={fields.length === 0}
+          >
+            Preview
+          </Button>
+          <Button 
+            onClick={handleSave}
+            disabled={!reportName.trim() || fields.length === 0 || isSaving}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Save Report
+              </>
+            )}
           </Button>
         </div>
       </CardContent>

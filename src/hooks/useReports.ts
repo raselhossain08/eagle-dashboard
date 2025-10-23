@@ -30,6 +30,22 @@ export const useUserActivityReport = (params: ActivityReportParams) => {
   });
 };
 
+export const useUserAcquisitionReport = (params: ActivityReportParams) => {
+  return useQuery({
+    queryKey: ['reports', 'user-acquisition', params],
+    queryFn: () => reportsService.getUserAcquisitionReport(params),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const useUserRetentionReport = (params: ActivityReportParams & { cohortType?: 'weekly' | 'monthly' }) => {
+  return useQuery({
+    queryKey: ['reports', 'user-retention', params],
+    queryFn: () => reportsService.getUserRetentionReport(params),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
 export const useReportTemplates = () => {
   return useQuery({
     queryKey: ['reports', 'templates'],
@@ -42,5 +58,21 @@ export const useCustomReport = (config: CustomReportConfig) => {
     queryKey: ['reports', 'custom', config],
     queryFn: () => reportsService.generateCustomReport(config),
     enabled: !!config.name,
+  });
+};
+
+export const useDashboardOverview = (startDate?: string, endDate?: string) => {
+  return useQuery({
+    queryKey: ['reports', 'dashboard-overview', startDate, endDate],
+    queryFn: () => reportsService.getDashboardOverview(startDate, endDate),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const useRecentReports = (limit?: number) => {
+  return useQuery({
+    queryKey: ['reports', 'recent', limit],
+    queryFn: () => reportsService.getRecentReports(limit),
+    staleTime: 2 * 60 * 1000, // 2 minutes cache for recent reports
   });
 };

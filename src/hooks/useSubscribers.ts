@@ -41,3 +41,62 @@ export const useDeleteSubscriber = () => {
     },
   });
 };
+
+// Segment hooks
+export const useSegments = () => {
+  return useQuery({
+    queryKey: ['segments'],
+    queryFn: () => subscribersService.getSegments(),
+  });
+};
+
+export const useSegment = (id: string) => {
+  return useQuery({
+    queryKey: ['segments', id],
+    queryFn: () => subscribersService.getSegment(id),
+    enabled: !!id,
+  });
+};
+
+export const useSegmentSubscribers = (segmentId: string) => {
+  return useQuery({
+    queryKey: ['segments', segmentId, 'subscribers'],
+    queryFn: () => subscribersService.getSubscribersInSegment(segmentId),
+    enabled: !!segmentId,
+  });
+};
+
+export const useCreateSegment = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (data: any) => subscribersService.createSegment(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['segments'] });
+    },
+  });
+};
+
+export const useUpdateSegment = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      subscribersService.updateSegment(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['segments'] });
+      queryClient.invalidateQueries({ queryKey: ['segments', variables.id] });
+    },
+  });
+};
+
+export const useDeleteSegment = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (id: string) => subscribersService.deleteSegment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['segments'] });
+    },
+  });
+};

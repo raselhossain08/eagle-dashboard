@@ -6,10 +6,12 @@ import { ContractStatusFlowChart } from '@/components/contracts/contract-status-
 import { SigningActivityChart } from '@/components/contracts/signing-activity-chart'
 import { useContractMetrics } from '@/hooks/use-contracts'
 import { useSignatureAnalytics } from '@/hooks/use-signatures'
+import { useTemplatePerformance } from '@/hooks/use-contract-analytics'
 import { useContractsStore } from '@/store/contracts-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Download, Calendar } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Download, Calendar, TrendingUp, Clock } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -17,11 +19,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { LoadingSpinner } from '@/components/loading-spinner'
 
 export default function ContractsAnalyticsPage() {
   const { dateRange, setDateRange } = useContractsStore()
   const { data: contractMetrics, isLoading: contractsLoading } = useContractMetrics(dateRange)
   const { data: signatureAnalytics, isLoading: signaturesLoading } = useSignatureAnalytics(dateRange)
+  const { data: templatePerformance, isLoading: templatesLoading } = useTemplatePerformance(dateRange)
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -58,7 +70,47 @@ export default function ContractsAnalyticsPage() {
     </div>
   )
 
-  const isLoading = contractsLoading || signaturesLoading
+  const isLoading = contractsLoading || signaturesLoading || templatesLoading
+
+  if (isLoading) {
+    return (
+      <ContractsDashboardShell
+        title="Contracts Analytics"
+        description="Comprehensive analytics and insights for your contracts"
+        breadcrumbs={breadcrumbs}
+        actions={actions}
+      >
+        <div className="flex items-center justify-center h-64">
+          <LoadingSpinner />
+        </div>
+      </ContractsDashboardShell>
+    )
+  }
+
+  // Calculate status flow data from contract metrics
+  const statusFlowData = [
+    { status: 'draft', count: contractMetrics?.draftContracts || 0, percentage: 0 },
+    { status: 'sent', count: contractMetrics?.sentContracts || 0, percentage: 0 },
+    { status: 'viewed', count: contractMetrics?.viewedContracts || 0, percentage: 0 },
+    { status: 'signed', count: contractMetrics?.signedContracts || 0, percentage: 0 },
+    { status: 'expired', count: contractMetrics?.expiredContracts || 0, percentage: 0 },
+  ]
+
+  // Calculate percentages
+  const totalContracts = statusFlowData.reduce((sum, item) => sum + item.count, 0)
+  if (totalContracts > 0) {
+    statusFlowData.forEach(item => {
+      item.percentage = Math.round((item.count / totalContracts) * 100)
+    })
+  }
+
+  // Generate signing activity data from signature analytics
+  const signingActivityData = signatureAnalytics?.signaturesByDay?.map(item => ({
+    date: item.date,
+    sent: contractMetrics?.sentContracts || 0, // This would need to be by day
+    viewed: contractMetrics?.viewedContracts || 0, // This would need to be by day
+    signed: item.count
+  })) || []
 
   return (
     <ContractsDashboardShell
@@ -98,7 +150,7 @@ export default function ContractsAnalyticsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Signature Rate</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{contractMetrics?.signatureRate || 0}%</div>
@@ -111,7 +163,7 @@ export default function ContractsAnalyticsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Avg. Signing Time</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{contractMetrics?.averageSigningTime || 0}h</div>
@@ -134,13 +186,7 @@ export default function ContractsAnalyticsPage() {
           </CardHeader>
           <CardContent>
             <ContractStatusFlowChart
-              data={[
-                { status: 'draft', count: contractMetrics?.draftContracts || 0, percentage: 0 },
-                { status: 'sent', count: contractMetrics?.sentContracts || 0, percentage: 0 },
-                { status: 'viewed', count: 10, percentage: 0 }, // Mock data
-                { status: 'signed', count: contractMetrics?.signedContracts || 0, percentage: 0 },
-                { status: 'expired', count: contractMetrics?.expiredContracts || 0, percentage: 0 },
-              ]}
+              data={statusFlowData}
               isLoading={isLoading}
             />
           </CardContent>
@@ -156,15 +202,8 @@ export default function ContractsAnalyticsPage() {
           </CardHeader>
           <CardContent>
             <SigningActivityChart
-              data={[
-                { date: '2024-01', sent: 45, viewed: 30, signed: 25 },
-                { date: '2024-02', sent: 52, viewed: 35, signed: 28 },
-                { date: '2024-03', sent: 48, viewed: 32, signed: 26 },
-                { date: '2024-04', sent: 60, viewed: 40, signed: 35 },
-                { date: '2024-05', sent: 55, viewed: 38, signed: 32 },
-                { date: '2024-06', sent: 65, viewed: 45, signed: 40 },
-              ]}
-              period="monthly"
+              data={signingActivityData}
+              period="daily"
               isLoading={isLoading}
             />
           </CardContent>
@@ -180,12 +219,61 @@ export default function ContractsAnalyticsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {/* Add template performance table/chart here */}
+          {templatePerformance && templatePerformance.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Template</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Total Contracts</TableHead>
+                  <TableHead>Signature Rate</TableHead>
+                  <TableHead>Avg. Signing Time</TableHead>
+                  <TableHead>Popularity</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {templatePerformance.map((template) => (
+                  <TableRow key={template.templateId}>
+                    <TableCell className="font-medium">{template.templateName}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {template.category}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{template.totalContracts}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-medium ${
+                          template.signatureRate >= 70 ? 'text-green-600' :
+                          template.signatureRate >= 50 ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                          {template.signatureRate.toFixed(1)}%
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{template.averageSigningTime.toFixed(1)}h</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="w-12 bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full" 
+                            style={{ width: `${Math.min(template.popularityScore, 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {template.popularityScore.toFixed(0)}
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
-              Template performance analytics will be displayed here
+              No template performance data available for the selected period
             </p>
-          </div>
+          )}
         </CardContent>
       </Card>
     </ContractsDashboardShell>

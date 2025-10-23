@@ -4,22 +4,44 @@
 import { DiscountsDashboardShell } from '@/components/discounts/discounts-dashboard-shell';
 import { CampaignForm } from '@/components/discounts/campaign-form';
 import { CreateCampaignDto } from '@/types/discounts';
+import { useCreateCampaign } from '@/hooks/use-campaigns';
+import { useDiscounts } from '@/hooks/use-discounts';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 export default function CreateCampaignPage() {
+  const router = useRouter();
+  const createCampaign = useCreateCampaign();
+  
+  // Fetch available discounts for selection
+  const { data: discountsData } = useDiscounts({
+    page: 1,
+    limit: 100, // Get all discounts for selection
+    isActive: true
+  });
+
   const handleSubmit = async (data: CreateCampaignDto) => {
-    // Implement API call
-    console.log('Creating campaign:', data);
+    try {
+      await createCampaign.mutateAsync(data);
+      toast.success('Campaign created successfully');
+      router.push('/dashboard/discounts/campaigns');
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to create campaign';
+      toast.error(errorMessage);
+      console.error('Campaign creation failed:', error);
+    }
   };
 
   const handleCancel = () => {
-    window.history.back();
+    router.push('/dashboard/discounts/campaigns');
   };
 
-  // Mock data
-  const mockDiscounts = [
-    { id: '1', code: 'SUMMER25', description: 'Summer 25% off' },
-    { id: '2', code: 'WELCOME10', description: 'Welcome 10% off' }
-  ];
+  // Transform discounts data for the form
+  const discounts = discountsData?.data?.map(discount => ({
+    id: discount.id,
+    code: discount.code,
+    description: discount.description || `${discount.type} - ${discount.value}${discount.type === 'percentage' ? '%' : ` ${discount.currency}`}`
+  })) || [];
 
   return (
     <DiscountsDashboardShell
@@ -33,10 +55,11 @@ export default function CreateCampaignPage() {
       ]}
     >
       <CampaignForm
-        discounts={mockDiscounts}
+        discounts={discounts}
         onSubmit={handleSubmit}
         onCancel={handleCancel}
         mode="create"
+        isLoading={createCampaign.isPending}
       />
     </DiscountsDashboardShell>
   );

@@ -4,29 +4,30 @@
 import React from 'react';
 import { useParams } from 'next/navigation';
 import { BillingDashboardShell } from '@/components/billing/billing-dashboard-shell';
-import { BillingNavigation } from '@/components/billing/billing-navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Download, Send, Check, FileText, User, Calendar } from 'lucide-react';
-import { useInvoice } from '@/hooks/use-invoices';
+import { useInvoice, useMarkInvoiceAsPaid, useVoidInvoice, useSendInvoice, useDownloadInvoice } from '@/hooks/use-invoices';
+import { useUser } from '@/hooks/use-users';
 import Link from 'next/link';
-import { formatCurrency, formatDate } from '@/lib/utils';
-
-// Mock data
-const mockCustomer = {
-  id: 'user_123',
-  email: 'customer@example.com',
-  firstName: 'John',
-  lastName: 'Doe',
-  company: 'Example Corp'
-};
+import { formatCurrency, formatDate, isInvoiceOverdue } from '@/lib/utils';
+import { toast } from 'sonner';
 
 export default function InvoiceDetailsPage() {
   const params = useParams();
   const invoiceId = params.id as string;
   
-  const { data: invoice, isLoading } = useInvoice(invoiceId);
+  const { data: invoice, isLoading: invoiceLoading } = useInvoice(invoiceId);
+  
+  // Extract customer info from the invoice data since it's populated
+  const customer = invoice?.userId && typeof invoice.userId === 'object' ? invoice.userId as any : null;
+  
+  // Mutations
+  const markAsPaidMutation = useMarkInvoiceAsPaid();
+  const voidMutation = useVoidInvoice();
+  const sendMutation = useSendInvoice();
+  const downloadMutation = useDownloadInvoice();
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -35,171 +36,185 @@ export default function InvoiceDetailsPage() {
     { label: invoice?.invoiceNumber || 'Loading...', href: '#', active: true }
   ];
 
-  const handleDownload = () => {
-    console.log('Download invoice:', invoiceId);
+  const handleDownload = async () => {
+    try {
+      const blob = await downloadMutation.mutateAsync(invoiceId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice-${invoice?.invoiceNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Invoice downloaded successfully');
+    } catch (error) {
+      toast.error('Failed to download invoice');
+    }
   };
 
-  const handleSend = () => {
-    console.log('Send invoice:', invoiceId);
+  const handleSend = async () => {
+    try {
+      await sendMutation.mutateAsync(invoiceId);
+      toast.success('Invoice sent successfully');
+    } catch (error) {
+      toast.error('Failed to send invoice');
+    }
   };
 
-  const handleMarkPaid = () => {
-    console.log('Mark invoice as paid:', invoiceId);
+  const handleMarkPaid = async () => {
+    try {
+      await markAsPaidMutation.mutateAsync({
+        id: invoiceId,
+        amount: invoice?.amountDue || 0,
+        date: new Date(),
+      });
+      toast.success('Invoice marked as paid');
+    } catch (error) {
+      toast.error('Failed to mark invoice as paid');
+    }
   };
+
+  const isLoading = invoiceLoading;
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen">
-        <div className="hidden w-64 lg:block border-r">
-          <div className="p-6">
-            <BillingNavigation />
-          </div>
+      <BillingDashboardShell
+        title="Loading..."
+        description="Loading invoice details"
+        breadcrumbs={breadcrumbs}
+      >
+        <div className="space-y-4">
+          <div className="h-8 bg-muted rounded animate-pulse w-1/3" />
+          <div className="h-64 bg-muted rounded animate-pulse" />
         </div>
-        <BillingDashboardShell
-          title="Loading..."
-          description="Loading invoice details"
-          breadcrumbs={breadcrumbs}
-        >
-          <div className="space-y-4">
-            <div className="h-8 bg-muted rounded animate-pulse w-1/3" />
-            <div className="h-64 bg-muted rounded animate-pulse" />
-          </div>
-        </BillingDashboardShell>
-      </div>
+      </BillingDashboardShell>
     );
   }
 
   if (!invoice) {
     return (
-      <div className="flex min-h-screen">
-        <div className="hidden w-64 lg:block border-r">
-          <div className="p-6">
-            <BillingNavigation />
-          </div>
+      <BillingDashboardShell
+        title="Invoice Not Found"
+        description="The requested invoice could not be found"
+        breadcrumbs={breadcrumbs}
+      >
+        <div className="text-center py-12">
+          <FileText className="h-24 w-24 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Invoice Not Found</h3>
+          <p className="text-muted-foreground mb-6">
+            The invoice you're looking for doesn't exist or has been deleted.
+          </p>
+          <Link href="/dashboard/billing/invoices">
+            <Button>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Invoices
+            </Button>
+          </Link>
         </div>
-        <BillingDashboardShell
-          title="Invoice Not Found"
-          description="The requested invoice could not be found"
-          breadcrumbs={breadcrumbs}
-        >
-          <div className="text-center py-12">
-            <FileText className="h-24 w-24 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Invoice Not Found</h3>
-            <p className="text-muted-foreground mb-6">
-              The invoice you're looking for doesn't exist or has been deleted.
-            </p>
-            <Link href="/dashboard/billing/invoices">
-              <Button>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Invoices
-              </Button>
-            </Link>
-          </div>
-        </BillingDashboardShell>
-      </div>
+      </BillingDashboardShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar Navigation */}
-      <div className="hidden w-64 lg:block border-r">
-        <div className="p-6">
-          <BillingNavigation />
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <BillingDashboardShell
-        title={invoice.invoiceNumber}
-        description={`Invoice for ${mockCustomer.firstName} ${mockCustomer.lastName}`}
-        breadcrumbs={breadcrumbs}
-        actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleDownload}>
-              <Download className="h-4 w-4 mr-2" />
-              Download
+    <BillingDashboardShell
+      title={invoice.invoiceNumber}
+      description={`Invoice for ${customer?.firstName} ${customer?.lastName}` || 'Invoice details'}
+      breadcrumbs={breadcrumbs}
+      actions={
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleDownload} disabled={downloadMutation.isPending}>
+            <Download className="h-4 w-4 mr-2" />
+            Download
+          </Button>
+          {invoice.status === 'draft' && (
+            <Button variant="outline" onClick={handleSend} disabled={sendMutation.isPending}>
+              <Send className="h-4 w-4 mr-2" />
+              Send
             </Button>
-            {invoice.status === 'draft' && (
-              <Button variant="outline" onClick={handleSend}>
-                <Send className="h-4 w-4 mr-2" />
-                Send
-              </Button>
-            )}
-            {invoice.status === 'open' && (
-              <Button onClick={handleMarkPaid}>
-                <Check className="h-4 w-4 mr-2" />
-                Mark Paid
-              </Button>
-            )}
-            <Link href="/dashboard/billing/invoices">
-              <Button variant="outline">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-            </Link>
-          </div>
-        }
-      >
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Invoice Details */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Invoice Details</span>
-                  <Badge variant={
-                    invoice.status === 'paid' ? 'default' :
-                    invoice.status === 'overdue' ? 'destructive' : 'outline'
-                  }>
-                    {invoice.status}
-                  </Badge>
-                </CardTitle>
-                <CardDescription>
-                  Created on {formatDate(invoice.createdAt)}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Customer Information */}
-                <div>
-                  <h3 className="font-medium mb-3">Bill To</h3>
-                  <div className="flex items-start space-x-3">
-                    <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <div className="font-medium">
-                        {mockCustomer.firstName} {mockCustomer.lastName}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {mockCustomer.email}
-                      </div>
-                      {mockCustomer.company && (
-                        <div className="text-sm text-muted-foreground">
-                          {mockCustomer.company}
+          )}
+          {invoice.status === 'open' && (
+            <Button onClick={handleMarkPaid} disabled={markAsPaidMutation.isPending}>
+              <Check className="h-4 w-4 mr-2" />
+              Mark Paid
+            </Button>
+          )}
+          <Link href="/dashboard/billing/invoices">
+            <Button variant="outline">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+          </Link>
+        </div>
+      }
+    >
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Invoice Details */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Invoice Details</span>
+                <Badge variant={
+                  invoice.status === 'paid' ? 'default' :
+                  isInvoiceOverdue(invoice) ? 'destructive' : 'outline'
+                }>
+                  {isInvoiceOverdue(invoice) ? 'overdue' : invoice.status}
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Created on {formatDate(invoice.createdAt)}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Customer Information */}
+              <div>
+                <h3 className="font-medium mb-3">Bill To</h3>
+                <div className="flex items-start space-x-3">
+                  <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+                  <div>
+                    {customer ? (
+                      <>
+                        <div className="font-medium">
+                          {customer.firstName} {customer.lastName}
                         </div>
-                      )}
-                    </div>
+                        <div className="text-sm text-muted-foreground">
+                          {customer.email}
+                        </div>
+                        {customer.company && (
+                          <div className="text-sm text-muted-foreground">
+                            {customer.company}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">
+                        Customer information not available
+                      </div>
+                    )}
                   </div>
                 </div>
+              </div>
 
-                {/* Invoice Dates */}
-                <div className="grid grid-cols-2 gap-4">
+              {/* Invoice Dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Invoice Date</h4>
+                  <div className="flex items-center text-sm">
+                    <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                    {formatDate(invoice.createdAt)}
+                  </div>
+                </div>
+                {invoice.dueDate && (
                   <div>
-                    <h4 className="text-sm font-medium mb-2">Invoice Date</h4>
+                    <h4 className="text-sm font-medium mb-2">Due Date</h4>
                     <div className="flex items-center text-sm">
                       <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                      {formatDate(invoice.createdAt)}
+                      {formatDate(invoice.dueDate)}
                     </div>
                   </div>
-                  {invoice.dueDate && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Due Date</h4>
-                      <div className="flex items-center text-sm">
-                        <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                        {formatDate(invoice.dueDate)}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
+              </div>
 
                 {/* Line Items */}
                 <div>
@@ -283,20 +298,34 @@ export default function InvoiceDetailsPage() {
                 <CardTitle className="text-sm">Invoice Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full" onClick={handleDownload}>
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleDownload}
+                  disabled={downloadMutation.isPending}
+                >
                   <Download className="h-4 w-4 mr-2" />
-                  Download PDF
+                  {downloadMutation.isPending ? 'Downloading...' : 'Download PDF'}
                 </Button>
                 {invoice.status === 'draft' && (
-                  <Button variant="outline" className="w-full" onClick={handleSend}>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={handleSend}
+                    disabled={sendMutation.isPending}
+                  >
                     <Send className="h-4 w-4 mr-2" />
-                    Send to Customer
+                    {sendMutation.isPending ? 'Sending...' : 'Send to Customer'}
                   </Button>
                 )}
                 {invoice.status === 'open' && (
-                  <Button className="w-full" onClick={handleMarkPaid}>
+                  <Button 
+                    className="w-full" 
+                    onClick={handleMarkPaid}
+                    disabled={markAsPaidMutation.isPending}
+                  >
                     <Check className="h-4 w-4 mr-2" />
-                    Mark as Paid
+                    {markAsPaidMutation.isPending ? 'Processing...' : 'Mark as Paid'}
                   </Button>
                 )}
               </CardContent>
@@ -313,9 +342,9 @@ export default function InvoiceDetailsPage() {
                     <span className="text-sm">Status</span>
                     <Badge variant={
                       invoice.status === 'paid' ? 'default' :
-                      invoice.status === 'overdue' ? 'destructive' : 'outline'
+                      isInvoiceOverdue(invoice) ? 'destructive' : 'outline'
                     }>
-                      {invoice.status}
+                      {isInvoiceOverdue(invoice) ? 'overdue' : invoice.status}
                     </Badge>
                   </div>
                   <div className="flex justify-between">
@@ -342,6 +371,5 @@ export default function InvoiceDetailsPage() {
           </div>
         </div>
       </BillingDashboardShell>
-    </div>
-  );
-}
+    );
+  }

@@ -188,19 +188,19 @@ export default function PlanDetailsPage() {
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span>Active Subscriptions</span>
-                  <span className="font-medium">24</span>
+                  <span className="font-medium">Coming soon</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span>Total Revenue</span>
-                  <span className="font-medium">{formatCurrency(24500)}</span>
+                  <span className="font-medium">Coming soon</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span>Avg. Lifetime</span>
-                  <span className="font-medium">18 months</span>
+                  <span className="font-medium">Coming soon</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span>Churn Rate</span>
-                  <span className="font-medium text-red-600">2.1%</span>
+                  <span className="font-medium">Coming soon</span>
                 </div>
               </CardContent>
             </Card>

@@ -15,9 +15,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, X, User, Users } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowLeft, X, User, Users, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { useSendEmail, useTemplates } from '@/hooks/useNotifications';
 import { SendEmailDto } from '@/types/notifications';
+import { toast } from 'sonner';
 import Link from 'next/link';
 
 export default function SendEmailPage() {
@@ -28,14 +30,22 @@ export default function SendEmailPage() {
   const [content, setContent] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [sendOption, setSendOption] = useState<'now' | 'schedule'>('now');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [variables, setVariables] = useState<Record<string, any>>({});
   
   const sendEmailMutation = useSendEmail();
-  const { data: templates } = useTemplates();
+  const { data: templates, isLoading: templatesLoading } = useTemplates();
 
   const handleAddRecipient = () => {
     if (currentRecipient.trim() && isValidEmail(currentRecipient.trim())) {
-      setRecipients(prev => [...prev, currentRecipient.trim()]);
-      setCurrentRecipient('');
+      if (!recipients.includes(currentRecipient.trim())) {
+        setRecipients(prev => [...prev, currentRecipient.trim()]);
+        setCurrentRecipient('');
+      } else {
+        toast.error('Email address already added');
+      }
+    } else {
+      toast.error('Please enter a valid email address');
     }
   };
 
@@ -60,11 +70,70 @@ export default function SendEmailPage() {
     if (template) {
       setSubject(template.subject);
       setContent(template.content);
+      
+      // Initialize variables for template
+      const templateVariables: Record<string, any> = {};
+      template.variables?.forEach(variable => {
+        templateVariables[variable] = '';
+      });
+      setVariables(templateVariables);
     }
   };
 
+  const handleVariableChange = (key: string, value: string) => {
+    setVariables(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const validateForm = () => {
+    if (recipients.length === 0) {
+      toast.error('Please add at least one recipient');
+      return false;
+    }
+    
+    if (!subject.trim()) {
+      toast.error('Please enter a subject');
+      return false;
+    }
+    
+    if (!content.trim()) {
+      toast.error('Please enter email content');
+      return false;
+    }
+
+    if (sendOption === 'schedule') {
+      if (!scheduledDate) {
+        toast.error('Please select a scheduled date and time');
+        return false;
+      }
+      
+      const scheduledDateTime = new Date(scheduledDate);
+      if (scheduledDateTime <= new Date()) {
+        toast.error('Scheduled time must be in the future');
+        return false;
+      }
+    }
+
+    // Validate template variables if template is selected
+    const template = templates?.find(t => t.id === selectedTemplate);
+    if (template?.variables) {
+      const missingVariables = template.variables.filter(variable => 
+        !variables[variable] || variables[variable].trim() === ''
+      );
+      
+      if (missingVariables.length > 0) {
+        toast.error(`Please fill in all template variables: ${missingVariables.join(', ')}`);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleSend = async () => {
-    if (recipients.length === 0 || !subject.trim() || !content.trim()) {
+    if (!validateForm()) {
       return;
     }
 
@@ -73,15 +142,31 @@ export default function SendEmailPage() {
       subject: subject.trim(),
       content: content.trim(),
       templateId: selectedTemplate || undefined,
+      variables: Object.keys(variables).length > 0 ? variables : undefined,
+      scheduledAt: sendOption === 'schedule' ? scheduledDate : undefined,
     };
 
     try {
-      await sendEmailMutation.mutateAsync(emailData);
-      router.push('/dashboard/notifications/email');
-    } catch (error) {
+      const response = await sendEmailMutation.mutateAsync(emailData);
+      
+      // Show success message based on send option
+      if (sendOption === 'schedule') {
+        toast.success(`Email scheduled successfully! ${response.sent} email(s) will be sent on ${new Date(scheduledDate).toLocaleString()}`);
+      } else {
+        toast.success(`Email sent successfully! ${response.sent} out of ${recipients.length} email(s) sent.`);
+      }
+      
+      // Navigate back after short delay
+      setTimeout(() => {
+        router.push('/dashboard/notifications/email');
+      }, 1500);
+    } catch (error: any) {
       console.error('Failed to send email:', error);
+      toast.error(error.message || 'Failed to send email');
     }
   };
+
+  const selectedTemplateData = templates?.find(t => t.id === selectedTemplate);
 
   return (
     <div className="space-y-6">
@@ -114,23 +199,56 @@ export default function SendEmailPage() {
               {/* Template Selection */}
               <div className="grid gap-2">
                 <Label htmlFor="template">Use Template (Optional)</Label>
-                <Select value={selectedTemplate} onValueChange={handleTemplateChange}>
+                <Select value={selectedTemplate} onValueChange={handleTemplateChange} disabled={templatesLoading}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a template" />
+                    <SelectValue placeholder={templatesLoading ? "Loading templates..." : "Select a template"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {templates?.map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        {template.name}
+                    {templates && templates.length > 0 ? (
+                      templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>
+                        No templates available
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
+                {!templatesLoading && (!templates || templates.length === 0) && (
+                  <p className="text-xs text-muted-foreground">
+                    No email templates found. You can still send emails without templates.
+                  </p>
+                )}
               </div>
+
+              {/* Template Variables */}
+              {selectedTemplateData?.variables && selectedTemplateData.variables.length > 0 && (
+                <div className="grid gap-2">
+                  <Label>Template Variables</Label>
+                  <div className="space-y-3 p-4 border rounded-md bg-muted/30">
+                    {selectedTemplateData.variables.map((variable) => (
+                      <div key={variable} className="grid gap-1">
+                        <Label htmlFor={`var-${variable}`} className="text-sm">
+                          {variable} <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id={`var-${variable}`}
+                          placeholder={`Enter value for ${variable}`}
+                          value={variables[variable] || ''}
+                          onChange={(e) => handleVariableChange(variable, e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Recipients */}
               <div className="grid gap-2">
-                <Label htmlFor="recipients">Recipients</Label>
+                <Label htmlFor="recipients">Recipients <span className="text-red-500">*</span></Label>
                 <div className="space-y-2">
                   <div className="flex gap-2">
                     <Input
@@ -140,7 +258,7 @@ export default function SendEmailPage() {
                       onKeyPress={handleKeyPress}
                       type="email"
                     />
-                    <Button type="button" onClick={handleAddRecipient}>
+                    <Button type="button" onClick={handleAddRecipient} disabled={!currentRecipient.trim()}>
                       Add
                     </Button>
                   </div>
@@ -172,7 +290,7 @@ export default function SendEmailPage() {
 
               {/* Subject */}
               <div className="grid gap-2">
-                <Label htmlFor="subject">Subject</Label>
+                <Label htmlFor="subject">Subject <span className="text-red-500">*</span></Label>
                 <Input
                   id="subject"
                   placeholder="Email subject"
@@ -183,7 +301,7 @@ export default function SendEmailPage() {
 
               {/* Content */}
               <div className="grid gap-2">
-                <Label htmlFor="content">Email Content</Label>
+                <Label htmlFor="content">Email Content <span className="text-red-500">*</span></Label>
                 <Textarea
                   id="content"
                   placeholder="Write your email content here..."
@@ -191,6 +309,9 @@ export default function SendEmailPage() {
                   onChange={(e) => setContent(e.target.value)}
                   className="min-h-[300px]"
                 />
+                <p className="text-xs text-muted-foreground">
+                  You can use HTML formatting in your email content.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -219,28 +340,58 @@ export default function SendEmailPage() {
 
               {sendOption === 'schedule' && (
                 <div className="space-y-2">
-                  <Label htmlFor="scheduleDate">Schedule Date & Time</Label>
+                  <Label htmlFor="scheduleDate">Schedule Date & Time <span className="text-red-500">*</span></Label>
                   <Input
                     id="scheduleDate"
                     type="datetime-local"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    min={new Date().toISOString().slice(0, 16)}
                   />
+                  {scheduledDate && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Will be sent on {new Date(scheduledDate).toLocaleString()}
+                    </p>
+                  )}
                 </div>
               )}
 
               <Button 
                 className="w-full" 
                 onClick={handleSend}
-                disabled={
-                  sendEmailMutation.isPending || 
-                  recipients.length === 0 || 
-                  !subject.trim() || 
-                  !content.trim()
-                }
+                disabled={sendEmailMutation.isPending}
               >
-                {sendEmailMutation.isPending ? 'Sending...' : 'Send Email'}
+                {sendEmailMutation.isPending ? (
+                  sendOption === 'schedule' ? 'Scheduling...' : 'Sending...'
+                ) : (
+                  sendOption === 'schedule' ? 'Schedule Email' : 'Send Email'
+                )}
               </Button>
             </CardContent>
           </Card>
+
+          {/* Preview Info */}
+          {selectedTemplateData && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Template Info</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div>
+                  <strong>Template:</strong> {selectedTemplateData.name}
+                </div>
+                <div>
+                  <strong>Type:</strong> {selectedTemplateData.type || 'Standard'}
+                </div>
+                {selectedTemplateData.variables && selectedTemplateData.variables.length > 0 && (
+                  <div>
+                    <strong>Variables:</strong> {selectedTemplateData.variables.join(', ')}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Quick Tips */}
           <Card>
@@ -250,7 +401,8 @@ export default function SendEmailPage() {
             <CardContent className="space-y-2 text-sm text-muted-foreground">
               <p>• Use templates to save time on common emails</p>
               <p>• Add multiple recipients by entering emails one by one</p>
-              <p>• Test your email before sending to multiple users</p>
+              <p>• Schedule emails for optimal delivery times</p>
+              <p>• Fill in all template variables before sending</p>
               <p>• Check email logs for delivery status</p>
             </CardContent>
           </Card>

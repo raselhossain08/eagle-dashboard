@@ -8,16 +8,23 @@ import { SubscriptionsTable } from '@/components/billing/subscriptions-table';
 import { SubscriptionsOverview } from '@/components/billing/subscriptions-overview';
 import { Button } from '@/components/ui/button';
 import { Plus, Users, TrendingUp, TrendingDown, Clock } from 'lucide-react';
-import { useSubscriptions } from '@/hooks/use-subscriptions';
+import { useSubscriptions, useCancelSubscription, usePauseSubscription, useResumeSubscription } from '@/hooks/use-subscriptions';
+import { useBillingMetrics } from '@/hooks/use-billing';
 import { Subscription, SubscriptionStatus } from '@/types/billing';
 
 export default function SubscriptionsPage() {
   const [filters, setFilters] = useState({
     status: undefined as SubscriptionStatus | undefined,
     search: '',
+    page: 1,
+    pageSize: 10,
   });
 
-  const { data: subscriptionsData, isLoading } = useSubscriptions(filters);
+  const { data: subscriptionsData, isLoading, error } = useSubscriptions(filters);
+  const { data: metricsData, isLoading: metricsLoading } = useBillingMetrics();
+  const cancelMutation = useCancelSubscription();
+  const pauseMutation = usePauseSubscription();
+  const resumeMutation = useResumeSubscription();
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -25,46 +32,65 @@ export default function SubscriptionsPage() {
     { label: 'Subscriptions', href: '/dashboard/billing/subscriptions', active: true }
   ];
 
+  // Show error state
+  if (error) {
+    console.error('Subscriptions fetch error:', error);
+  }
+
   const handleFiltersChange = (newFilters: any) => {
-    setFilters(newFilters);
+    setFilters({ ...filters, ...newFilters, page: 1 }); // Reset to page 1 when filters change
   };
 
   const handleCancelSubscription = async (subscriptionId: string, reason?: string) => {
-    // Implementation for canceling subscription
-    console.log('Cancel subscription:', subscriptionId, reason);
+    try {
+      await cancelMutation.mutateAsync({ id: subscriptionId, reason });
+      // Success feedback handled by react-query
+    } catch (error) {
+      console.error('Failed to cancel subscription:', error);
+      // Error feedback handled by react-query
+    }
   };
 
   const handlePauseSubscription = async (subscriptionId: string, until: Date) => {
-    // Implementation for pausing subscription
-    console.log('Pause subscription:', subscriptionId, until);
+    try {
+      await pauseMutation.mutateAsync({ id: subscriptionId, until });
+    } catch (error) {
+      console.error('Failed to pause subscription:', error);
+    }
   };
 
   const handleResumeSubscription = async (subscriptionId: string) => {
-    // Implementation for resuming subscription
-    console.log('Resume subscription:', subscriptionId);
+    try {
+      await resumeMutation.mutateAsync(subscriptionId);
+    } catch (error) {
+      console.error('Failed to resume subscription:', error);
+    }
   };
 
-  // Mock overview data - in real app, this would come from API
+  // Calculate overview data from actual data with proper null checks
+  const subscriptions = subscriptionsData?.data || [];
+  
+  // Debug logging
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Subscriptions data:', subscriptionsData);
+    console.log('Subscriptions array:', subscriptions);
+    console.log('Metrics data:', metricsData);
+  }
+
   const overviewData = {
-    totalActive: subscriptionsData?.data.filter(s => s.status === 'active').length || 0,
-    totalCanceled: subscriptionsData?.data.filter(s => s.status === 'canceled').length || 0,
-    totalPaused: subscriptionsData?.data.filter(s => s.status === 'paused').length || 0,
-    upcomingRenewals: subscriptionsData?.data.filter(s => 
+    totalActive: subscriptions.filter(s => s.status === 'active').length,
+    totalCanceled: subscriptions.filter(s => s.status === 'canceled').length,
+    totalPaused: subscriptions.filter(s => s.status === 'paused').length,
+    upcomingRenewals: subscriptions.filter(s => 
       s.status === 'active' && 
       new Date(s.currentPeriodEnd).getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000
-    ).length || 0,
-    churnRate: 2.5, // This would be calculated from historical data
-    averageLifetime: 18, // Months
+    ).length,
+    churnRate: metricsData?.churnRate || 0,
+    averageLifetime: metricsData?.averageLifetime || 0,
   };
 
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar Navigation */}
-      <div className="hidden w-64 lg:block border-r">
-        <div className="p-6">
-          <BillingNavigation />
-        </div>
-      </div>
 
       {/* Main Content */}
       <BillingDashboardShell
@@ -78,9 +104,30 @@ export default function SubscriptionsPage() {
           </Button>
         }
       >
-        <div className="space-y-6">
+        {error ? (
+          <div className="text-center py-12">
+            <div className="text-red-600 mb-4">
+              <TrendingDown className="h-24 w-24 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Error Loading Subscriptions</h3>
+              <p className="text-gray-600">
+                {error instanceof Error ? error.message : 'Failed to load subscription data'}
+              </p>
+              <Button 
+                className="mt-4" 
+                onClick={() => window.location.reload()}
+                variant="outline"
+              >
+                Retry
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
           {/* Subscriptions Overview */}
-          <SubscriptionsOverview data={overviewData} isLoading={isLoading} />
+          <SubscriptionsOverview 
+            data={overviewData} 
+            isLoading={isLoading || metricsLoading} 
+          />
 
           {/* Quick Stats */}
           <div className="grid gap-4 md:grid-cols-4">
@@ -124,8 +171,8 @@ export default function SubscriptionsPage() {
 
           {/* Subscriptions Table */}
           <SubscriptionsTable
-            data={subscriptionsData?.data || []}
-            pagination={subscriptionsData?.pagination || { page: 1, pageSize: 10, total: 0 }}
+            data={subscriptions}
+            pagination={subscriptionsData?.pagination || { page: 1, pageSize: 10, total: 0, totalPages: 0 }}
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onCancel={handleCancelSubscription}
@@ -134,6 +181,7 @@ export default function SubscriptionsPage() {
             isLoading={isLoading}
           />
         </div>
+        )}
       </BillingDashboardShell>
     </div>
   );

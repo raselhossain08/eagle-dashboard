@@ -1,5 +1,5 @@
 // lib/api/api-client.ts
-import { CookiesService } from '@/lib/auth/cookies.service';
+import { AuthCookieService } from '@/lib/auth/cookie-service';
 
 class ApiClient {
   private baseURL: string;
@@ -12,23 +12,18 @@ class ApiClient {
     };
   }
 
-  private async getAuthToken(): Promise<string | null> {
-    if (typeof window !== 'undefined') {
-      return CookiesService.getCookie('accessToken');
-    }
-    return null;
-  }
-
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = await this.getAuthToken();
+    const token = AuthCookieService.getAccessToken();
+    
     const headers = new Headers({
       ...this.defaultHeaders,
       ...options.headers as HeadersInit,
     });
 
+    // Add Authorization header if token exists
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
@@ -37,6 +32,7 @@ class ApiClient {
     const config: RequestInit = {
       ...options,
       headers,
+      credentials: 'include', // Include cookies in requests
     };
 
     try {
@@ -47,16 +43,16 @@ class ApiClient {
       if (response.status === 401) {
         console.log('ApiClient: 401 Unauthorized');
         
+        // Clear authentication data on 401
+        AuthCookieService.clearAuthData();
+        
         // Only redirect to login if this is not a login request
-        // and if the user has a token (meaning they were logged in)
-        if (!endpoint.includes('/auth/login') && token) {
-          console.log('ApiClient: Token expired - clearing tokens and redirecting');
-          CookiesService.removeCookie('accessToken');
-          CookiesService.removeCookie('refreshToken');
+        if (!endpoint.includes('/auth/login') && typeof window !== 'undefined') {
+          console.log('ApiClient: Authentication failed - redirecting to login');
           window.location.href = '/login';
         }
         
-        // For login requests or when no token exists, just throw an error
+        // For login requests, just throw an error
         let errorData: any = {};
         try {
           errorData = await response.json();

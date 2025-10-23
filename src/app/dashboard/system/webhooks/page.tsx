@@ -5,12 +5,12 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useWebhookStats } from '@/hooks/useSystem';
-import { Plus, Activity, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import { useWebhookStats } from '@/hooks/useWebhooks';
+import { Plus, Activity, Clock, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 
 export default function WebhooksPage() {
-  const { data: stats, isLoading } = useWebhookStats();
+  const { data: stats, isLoading, refetch } = useWebhookStats();
 
   if (isLoading) {
     return (
@@ -36,12 +36,18 @@ export default function WebhooksPage() {
             Configure and monitor webhook endpoints and events
           </p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/system/webhooks/endpoints/new">
-            <Plus className="h-4 w-4 mr-2" />
-            New Endpoint
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button asChild>
+            <Link href="/dashboard/system/webhooks/endpoints/new">
+              <Plus className="h-4 w-4 mr-2" />
+              New Endpoint
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stats Overview */}
@@ -54,7 +60,7 @@ export default function WebhooksPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.total.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{stats?.total?.toLocaleString() || 0}</div>
             <p className="text-sm text-gray-500">All time</p>
           </CardContent>
         </Card>
@@ -67,8 +73,8 @@ export default function WebhooksPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.successful.toLocaleString()}</div>
-            <p className="text-sm text-gray-500">{stats?.successRate}% success rate</p>
+            <div className="text-2xl font-bold">{stats?.successful?.toLocaleString() || 0}</div>
+            <p className="text-sm text-gray-500">{stats?.successRate || 0}% success rate</p>
           </CardContent>
         </Card>
 
@@ -80,7 +86,7 @@ export default function WebhooksPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats?.failed}</div>
+            <div className="text-2xl font-bold text-red-600">{stats?.failed || 0}</div>
             <p className="text-sm text-gray-500">Requires attention</p>
           </CardContent>
         </Card>
@@ -93,7 +99,7 @@ export default function WebhooksPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats?.pending}</div>
+            <div className="text-2xl font-bold text-yellow-600">{stats?.pending || 0}</div>
             <p className="text-sm text-gray-500">In queue</p>
           </CardContent>
         </Card>
@@ -110,11 +116,13 @@ export default function WebhooksPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm">Active Endpoints</span>
-                <Badge variant="secondary">12</Badge>
+                <Badge variant="secondary">
+                  {stats?.endpointStats?.filter(e => e.id).length || 0}
+                </Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm">Inactive Endpoints</span>
-                <Badge variant="outline">3</Badge>
+                <span className="text-sm">Recent Events</span>
+                <Badge variant="outline">{stats?.recentEvents?.length || 0}</Badge>
               </div>
             </div>
             <Button asChild variant="outline" className="w-full">
@@ -132,11 +140,11 @@ export default function WebhooksPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm">Recent Events</span>
-                <Badge variant="secondary">1,234</Badge>
+                <Badge variant="secondary">{stats?.total || 0}</Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm">Last 24h</span>
-                <Badge variant="outline">256</Badge>
+                <span className="text-sm">Success Rate</span>
+                <Badge variant="outline">{stats?.successRate || 0}%</Badge>
               </div>
             </div>
             <Button asChild variant="outline" className="w-full">
@@ -154,12 +162,12 @@ export default function WebhooksPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm">Delivery Logs</span>
-                <Badge variant="secondary">5,678</Badge>
+                <Badge variant="secondary">{stats?.total || 0}</Badge>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm">Error Rate</span>
-                <Badge variant={stats?.successRate > 95 ? 'default' : 'destructive'}>
-                  {stats?.successRate}%
+                <Badge variant={(stats?.successRate || 0) > 95 ? 'default' : 'destructive'}>
+                  {100 - (stats?.successRate || 0)}%
                 </Badge>
               </div>
             </div>
@@ -169,6 +177,38 @@ export default function WebhooksPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recent Events */}
+      {stats?.recentEvents && stats.recentEvents.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Events</CardTitle>
+            <CardDescription>Latest webhook events processed</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {stats.recentEvents.slice(0, 5).map((event) => (
+                <div key={event.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline">{event.event}</Badge>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {new Date(event.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <Badge 
+                    variant={
+                      event.status === 'delivered' ? 'default' :
+                      event.status === 'pending' ? 'secondary' : 'destructive'
+                    }
+                  >
+                    {event.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

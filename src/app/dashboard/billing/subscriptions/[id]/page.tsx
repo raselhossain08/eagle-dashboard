@@ -9,74 +9,25 @@ import { SubscriptionDetailsPanel } from '@/components/billing/subscription-deta
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Calendar, TrendingUp, Users } from 'lucide-react';
-import { useSubscription } from '@/hooks/use-subscriptions';
+import { useSubscription, useCancelSubscription, usePauseSubscription, useResumeSubscription } from '@/hooks/use-subscriptions';
+import { useCustomer } from '@/hooks/use-customers';
+import { usePlan } from '@/hooks/use-plans';
+import { useSubscriptionInvoices } from '@/hooks/use-invoices';
 import { UpdateSubscriptionDto } from '@/types/billing';
 import Link from 'next/link';
-
-// Mock data - replace with actual API calls
-const mockCustomer = {
-  id: 'user_123',
-  email: 'customer@example.com',
-  firstName: 'John',
-  lastName: 'Doe',
-  company: 'Example Corp'
-};
-
-const mockPlan = {
-  id: 'plan_123',
-  name: 'Pro Plan',
-  price: 29900,
-  currency: 'USD',
-  interval: 'month' as const,
-  intervalCount: 1,
-  trialPeriodDays: 0,
-  features: ['Feature 1', 'Feature 2', 'Feature 3'],
-  sortOrder: 1,
-  isActive: true,
-  isVisible: true,
-  baseSeats: 1,
-  pricePerSeat: 1000,
-  createdAt: new Date(),
-  updatedAt: new Date()
-};
-
-const mockInvoices = [
-  {
-    id: 'inv_1',
-    userId: 'user_123',
-    subscriptionId: 'sub_123',
-    invoiceNumber: 'INV-2024-001',
-    amountDue: 29900,
-    amountPaid: 29900,
-    currency: 'USD',
-    status: 'paid' as const,
-    dueDate: new Date('2024-01-15'),
-    paidAt: new Date('2024-01-10'),
-    lineItems: [],
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-10')
-  },
-  {
-    id: 'inv_2',
-    userId: 'user_123',
-    subscriptionId: 'sub_123',
-    invoiceNumber: 'INV-2024-002',
-    amountDue: 29900,
-    amountPaid: 0,
-    currency: 'USD',
-    status: 'open' as const,
-    dueDate: new Date('2024-02-15'),
-    lineItems: [],
-    createdAt: new Date('2024-02-01'),
-    updatedAt: new Date('2024-02-01')
-  }
-];
 
 export default function SubscriptionDetailsPage() {
   const params = useParams();
   const subscriptionId = params.id as string;
   
   const { data: subscription, isLoading } = useSubscription(subscriptionId);
+  const { data: customer, isLoading: customerLoading } = useCustomer(subscription?.userId || '');
+  const { data: plan, isLoading: planLoading } = usePlan(subscription?.planId || '');
+  const { data: invoices, isLoading: invoicesLoading } = useSubscriptionInvoices(subscriptionId);
+  
+  const cancelMutation = useCancelSubscription();
+  const pauseMutation = usePauseSubscription();
+  const resumeMutation = useResumeSubscription();
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -86,26 +37,39 @@ export default function SubscriptionDetailsPage() {
   ];
 
   const handleUpdate = async (data: UpdateSubscriptionDto) => {
-    console.log('Update subscription:', data);
-    // Implement update logic
+    try {
+      // Implementation would use subscription update mutation
+      console.log('Update subscription:', data);
+    } catch (error) {
+      console.error('Failed to update subscription:', error);
+    }
   };
 
   const handleCancel = async (reason?: string) => {
-    console.log('Cancel subscription:', reason);
-    // Implement cancel logic
+    try {
+      await cancelMutation.mutateAsync({ id: subscriptionId, reason });
+    } catch (error) {
+      console.error('Failed to cancel subscription:', error);
+    }
   };
 
   const handlePause = async (until: Date) => {
-    console.log('Pause subscription until:', until);
-    // Implement pause logic
+    try {
+      await pauseMutation.mutateAsync({ id: subscriptionId, until });
+    } catch (error) {
+      console.error('Failed to pause subscription:', error);
+    }
   };
 
   const handleResume = async () => {
-    console.log('Resume subscription');
-    // Implement resume logic
+    try {
+      await resumeMutation.mutateAsync(subscriptionId);
+    } catch (error) {
+      console.error('Failed to resume subscription:', error);
+    }
   };
 
-  if (isLoading) {
+  if (isLoading || customerLoading || planLoading) {
     return (
       <div className="flex min-h-screen">
         <div className="hidden w-64 lg:block border-r">
@@ -127,7 +91,7 @@ export default function SubscriptionDetailsPage() {
     );
   }
 
-  if (!subscription) {
+  if (!subscription || !customer || !plan) {
     return (
       <div className="flex min-h-screen">
         <div className="hidden w-64 lg:block border-r">
@@ -185,9 +149,9 @@ export default function SubscriptionDetailsPage() {
           {/* Subscription Details Panel */}
           <SubscriptionDetailsPanel
             subscription={subscription}
-            customer={mockCustomer}
-            plan={mockPlan}
-            invoices={mockInvoices}
+            customer={customer}
+            plan={plan}
+            invoices={invoices || []}
             onUpdate={handleUpdate}
             onCancel={handleCancel}
             onPause={handlePause}

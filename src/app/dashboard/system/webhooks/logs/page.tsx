@@ -9,57 +9,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Filter, Download, Eye, RefreshCw } from 'lucide-react';
-
-const mockLogs = [
-  {
-    id: '1',
-    endpointId: '1',
-    event: 'order.created',
-    status: 200,
-    statusText: 'OK',
-    attempts: 1,
-    duration: 245,
-    createdAt: '2024-01-15T14:30:00Z',
-    payload: { orderId: '12345' },
-    response: 'Webhook delivered successfully'
-  },
-  {
-    id: '2',
-    endpointId: '2',
-    event: 'system.alert', 
-    status: 500,
-    statusText: 'Internal Server Error',
-    attempts: 3,
-    duration: 0,
-    createdAt: '2024-01-15T14:25:00Z',
-    payload: { alert: 'high_cpu' },
-    response: 'Endpoint unavailable'
-  },
-  {
-    id: '3',
-    endpointId: '1',
-    event: 'user.updated',
-    status: 200,
-    statusText: 'OK', 
-    attempts: 1,
-    duration: 189,
-    createdAt: '2024-01-15T14:20:00Z',
-    payload: { userId: 'user-123' },
-    response: 'Webhook delivered successfully'
-  }
-];
+import { useWebhookLogs } from '@/hooks/useWebhooks';
 
 export default function WebhookLogsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const limit = 10;
 
-  const filteredLogs = mockLogs.filter(log => {
-    const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'success' && log.status === 200) ||
-      (statusFilter === 'error' && log.status !== 200);
-    const matchesSearch = log.event.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         log.id.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+  const { data: logsData, isLoading, refetch } = useWebhookLogs({
+    page,
+    limit,
+    status: statusFilter === 'all' ? undefined : statusFilter,
   });
 
   const getStatusVariant = (status: number) => {
@@ -69,6 +30,17 @@ export default function WebhookLogsPage() {
   const getStatusText = (status: number) => {
     return status === 200 ? 'Success' : 'Failed';
   };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-64 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -84,7 +56,7 @@ export default function WebhookLogsPage() {
             <Download className="h-4 w-4 mr-2" />
             Export Logs
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -136,14 +108,14 @@ export default function WebhookLogsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLogs.map((log) => (
+              {logsData?.logs.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell className="font-mono text-sm">{log.id}</TableCell>
+                  <TableCell className="font-mono text-sm">{log.id.slice(-8)}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{log.event}</Badge>
                   </TableCell>
                   <TableCell className="font-mono text-sm">
-                    Endpoint {log.endpointId}
+                    {log.endpointId?.name || `Endpoint ${log.endpointId?.id || 'Unknown'}`}
                   </TableCell>
                   <TableCell>
                     <Badge variant={getStatusVariant(log.status)}>
@@ -164,50 +136,84 @@ export default function WebhookLogsPage() {
               ))}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {logsData && logsData.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6">
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                Showing {(page - 1) * limit + 1} to {Math.min(page * limit, logsData.total)} of {logsData.total} logs
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {page} of {logsData.totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(logsData.totalPages, p + 1))}
+                  disabled={page === logsData.totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Log Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Logs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{mockLogs.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {Math.round((mockLogs.filter(l => l.status === 200).length / mockLogs.length) * 100)}%
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Average Duration</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {Math.round(mockLogs.reduce((acc, log) => acc + log.duration, 0) / mockLogs.length)}ms
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Failed Deliveries</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {mockLogs.filter(l => l.status !== 200).length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {logsData?.stats && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Total Logs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{logsData.stats.totalLogs}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {logsData.stats.totalLogs > 0 
+                  ? Math.round((logsData.stats.successCount / logsData.stats.totalLogs) * 100)
+                  : 0}%
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Average Duration</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {logsData.stats.averageDuration}ms
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Failed Deliveries</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">
+                {logsData.stats.failureCount}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

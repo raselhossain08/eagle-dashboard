@@ -1,7 +1,7 @@
 // lib/config.ts
 export const config = {
   api: {
-    baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
+    baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1',
     timeout: 30000,
   },
   billing: {
@@ -18,3 +18,6 @@ export const config = {
     enablePdfGeneration: process.env.NEXT_PUBLIC_ENABLE_PDF_GENERATION === 'true',
   },
 } as const;
+
+// Export commonly used values
+export const API_BASE_URL = config.api.baseUrl

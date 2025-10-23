@@ -27,17 +27,8 @@ export class ApiClient {
   }
 
   private getAuthToken(): string | null {
-    // First try cookies
-    let token = AuthCookieService.getAccessToken()
-    
-    // If no token in cookies, try localStorage as fallback
-    if (!token && typeof window !== 'undefined') {
-      token = localStorage.getItem('eagle_access_token') || 
-              localStorage.getItem('accessToken') ||
-              localStorage.getItem('token')
-    }
-    
-    return token
+    // Use cookies only for token storage
+    return AuthCookieService.getAccessToken()
   }
 
   private async request<T>(
@@ -159,6 +150,51 @@ export class ApiClient {
     return this.request<T>(endpoint, {
       method: 'DELETE',
     })
+  }
+
+  // Special method for downloading files (returns blob)
+  async download(endpoint: string, options: {
+    method?: 'GET' | 'POST'
+    data?: any
+  } = {}): Promise<Blob> {
+    const { method = 'GET', data } = options
+    const url = `${this.baseURL}${endpoint}`
+    
+    try {
+      const headers: Record<string, string> = {}
+      
+      const token = this.getAuthToken()
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      if (data && method === 'POST') {
+        headers['Content-Type'] = 'application/json'
+      }
+
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+      })
+
+      if (!response.ok) {
+        throw new HttpError(response.status, `Download failed: ${response.statusText}`)
+      }
+
+      return await response.blob()
+    } catch (error) {
+      if (error instanceof HttpError) {
+        this.handleError(error)
+        throw error
+      }
+      
+      const networkError = new NetworkError(
+        error instanceof Error ? error.message : 'Download failed'
+      )
+      this.handleError(networkError)
+      throw networkError
+    }
   }
 
   private serializeParams(params: Record<string, any>): Record<string, string> {

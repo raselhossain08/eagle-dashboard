@@ -1,36 +1,129 @@
 'use client';
 
 import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ExportControls } from '@/components/reports/ExportControls';
 import { DataTable } from '@/components/reports/DataTable';
-import { ArrowLeft, Edit, Share2 } from 'lucide-react';
+import { ArrowLeft, Edit, Share2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { apiClient } from '@/lib/api/client';
+import { toast } from 'sonner';
 
-// Mock data for individual report
-const reportData = [
-  { metric: 'Total Revenue', value: 125000, change: 12.5 },
-  { metric: 'Active Users', value: 15600, change: 8.3 },
-  { metric: 'Conversion Rate', value: 3.2, change: -0.5 },
-  { metric: 'Customer Satisfaction', value: 4.5, change: 2.1 },
-];
+interface ReportData {
+  metric: string;
+  value: number;
+  change: number;
+}
+
+interface CustomReport {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  data: ReportData[];
+  insights: string[];
+  recommendations: string[];
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function CustomReportPage() {
   const params = useParams();
   const reportId = params.reportId as string;
+  const [report, setReport] = useState<CustomReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
-  const handleExport = (format: any) => {
-    console.log('Exporting custom report:', format, reportId);
+  useEffect(() => {
+    if (reportId) {
+      fetchReport();
+    }
+  }, [reportId]);
+
+  const fetchReport = async () => {
+    try {
+      setLoading(true);
+      const data = await apiClient.get<CustomReport>(`/reports/custom/${reportId}`);
+      setReport(data);
+    } catch (error) {
+      console.error('Error fetching report:', error);
+      toast.error('Failed to load report');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExport = async (format: 'csv' | 'excel' | 'pdf') => {
+    try {
+      setExporting(true);
+      const blob = await apiClient.download(`/reports/export/${reportId}?format=${format}`);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `report-${reportId}-${Date.now()}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success(`Report exported successfully as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Error exporting report:', error);
+      toast.error('Failed to export report');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast.success('Report link copied to clipboard');
+  };
+
+  const handleEdit = () => {
+    toast.info('Edit functionality coming soon');
   };
 
   const tableColumns = [
     { key: 'metric', label: 'Metric' },
-    { key: 'value', label: 'Value' },
+    { key: 'value', label: 'Value', format: (value: number) => value.toLocaleString() },
     { key: 'change', label: 'Change', format: (value: number) => 
       `${value >= 0 ? '+' : ''}${value}%`
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Loading report...</span>
+      </div>
+    );
+  }
+
+  if (!report) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/reports/custom">
+            <Button variant="outline" size="icon">
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Report Not Found</h1>
+            <p className="text-muted-foreground">
+              The requested report could not be found.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -42,27 +135,31 @@ export default function CustomReportPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Custom Report #{reportId}</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{report.name}</h1>
             <p className="text-muted-foreground">
-              Detailed analysis and insights
+              {report.description}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Created: {new Date(report.createdAt).toLocaleDateString()} • 
+              Updated: {new Date(report.updatedAt).toLocaleDateString()}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleShare}>
             <Share2 className="w-4 h-4 mr-2" />
             Share
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleEdit}>
             <Edit className="w-4 h-4 mr-2" />
             Edit
           </Button>
-          <ExportControls onExport={handleExport} />
+          <ExportControls onExport={handleExport} isLoading={exporting} />
         </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {reportData.map((item, index) => (
+        {report.data.map((item, index) => (
           <Card key={index}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">{item.metric}</CardTitle>
@@ -86,7 +183,7 @@ export default function CustomReportPage() {
         </CardHeader>
         <CardContent>
           <DataTable 
-            data={reportData} 
+            data={report.data} 
             columns={tableColumns}
             searchable={false}
           />
@@ -100,10 +197,9 @@ export default function CustomReportPage() {
             <CardDescription>Key findings from this report</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p>• Revenue growth is strong at 12.5% month-over-month</p>
-            <p>• User acquisition costs decreased by 8%</p>
-            <p>• Customer satisfaction improved significantly</p>
-            <p>• Conversion rate needs optimization</p>
+            {report.insights.map((insight, index) => (
+              <p key={index}>• {insight}</p>
+            ))}
           </CardContent>
         </Card>
 
@@ -113,10 +209,9 @@ export default function CustomReportPage() {
             <CardDescription>Suggested actions</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p>• Increase investment in high-performing channels</p>
-            <p>• Optimize conversion funnel for better rates</p>
-            <p>• Expand features driving user engagement</p>
-            <p>• Monitor customer satisfaction trends</p>
+            {report.recommendations.map((recommendation, index) => (
+              <p key={index}>• {recommendation}</p>
+            ))}
           </CardContent>
         </Card>
       </div>

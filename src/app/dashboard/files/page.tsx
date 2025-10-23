@@ -1,7 +1,7 @@
-// app/dashboard/files/page.tsx - UPDATED WITH ALL COMPONENTS
+// app/dashboard/files/page.tsx - CONVERTED TO REAL API
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { FilesDashboardShell } from '@/components/files/files-dashboard-shell';
 import { FilesNavigation } from '@/components/files/files-navigation';
 import { FilesGridView } from '@/components/files/files-grid-view';
@@ -10,194 +10,179 @@ import { FileSearchFilter } from '@/components/files/file-search-filter';
 import { FileActionsToolbar } from '@/components/files/file-actions-toolbar';
 import { FolderTree } from '@/components/files/folder-tree';
 import { StorageQuotaDisplay } from '@/components/files/storage-quota-display';
-// import { UploadProgress } from '@/components/files/upload-progress';
 import { FilePreviewModal } from '@/components/files/file-preview-modal';
+import { FileUploadZone } from '@/components/files/file-upload-zone';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { useFilesStore } from '@/store/files-store';
-import { uploadManager } from '@/lib/upload/upload-manager';
-import { FileItem, FolderItem } from '@/types/files';
-import { Plus, Grid3X3, List, Folder } from 'lucide-react';
-
-// Mock data
-const mockFiles: FileItem[] = [
-  {
-    id: '1',
-    key: 'documents/report.pdf',
-    name: 'Annual Report.pdf',
-    size: 2048576,
-    type: 'application/pdf',
-    lastModified: new Date('2024-01-15')
-  },
-  {
-    id: '2',
-    key: 'images/photo.jpg',
-    name: 'Vacation Photo.jpg',
-    size: 3456789,
-    type: 'image/jpeg',
-    lastModified: new Date('2024-01-14')
-  }
-];
-
-const mockFolders: FolderItem[] = [
-  {
-    id: '1',
-    name: 'Documents',
-    fileCount: 24,
-    children: [
-      { id: '2', name: 'Projects', parentId: '1', fileCount: 8 },
-      { id: '3', name: 'Reports', parentId: '1', fileCount: 12 }
-    ]
-  },
-  {
-    id: '4',
-    name: 'Images',
-    fileCount: 156,
-    children: [
-      { id: '5', name: '2024', parentId: '4', fileCount: 45 }
-    ]
-  }
-];
-
-const mockStorageBreakdown = [
-  { type: 'Images', size: 1024 * 1024 * 1024 * 8.2, color: '#3b82f6' },
-  { type: 'Documents', size: 1024 * 1024 * 1024 * 1.5, color: '#10b981' },
-  { type: 'Others', size: 1024 * 1024 * 1024 * 1.1, color: '#8b5cf6' }
-];
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useFiles, useFileDelete, useBulkDelete, useFileRename, useFileUpload, useMultipleFileUpload, useFolders, useCreateFolder, useStorageQuota, useStorageAnalytics } from '@/hooks/use-files';
+import { FileItem } from '@/types/files';
+import { FilesQueryParams } from '@/lib/api/files.service';
+import { Plus, Grid3X3, List, Upload, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function FilesPage() {
-  const {
-    files,
-    selectedFiles,
-    viewMode,
+  // State management
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [fileTypeFilter, setFileTypeFilter] = useState('all');
+  const [dateRangeFilter, setDateRangeFilter] = useState<{ from?: Date; to?: Date }>({});
+  const [sizeRangeFilter, setSizeRangeFilter] = useState<[number, number]>([0, 100 * 1024 * 1024]);
+  const [sortBy, setSortBy] = useState<'name' | 'size' | 'date' | 'type'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Query parameters for API
+  const queryParams: FilesQueryParams = useMemo(() => ({
+    page: currentPage,
+    limit: 20,
+    search: searchQuery || undefined,
+    type: fileTypeFilter !== 'all' ? fileTypeFilter : undefined,
     sortBy,
     sortOrder,
-    searchQuery,
-    fileTypeFilter,
-    dateRangeFilter,
-    sizeRangeFilter,
-    uploadQueue,
-    folders,
-    expandedFolders,
-    previewFile,
-    showPreview,
-    setFiles,
-    setViewMode,
-    setSorting,
-    setSearchQuery,
-    setFileTypeFilter,
-    setDateRangeFilter,
-    setSizeRangeFilter,
-    selectFile,
-    deselectFile,
-    selectAllFiles,
-    deselectAllFiles,
-    addToUploadQueue,
-    removeFromUploadQueue,
-    updateUploadProgress,
-    setUploadStatus,
-    clearCompletedUploads,
-    setFolders,
-    createFolder,
-    deleteFolder,
-    renameFolder,
-    toggleFolderExpand,
-    setPreviewFile,
-    togglePreview,
-    removeFile
-  } = useFilesStore();
+    fromDate: dateRangeFilter.from,
+    toDate: dateRangeFilter.to,
+    minSize: sizeRangeFilter[0] > 0 ? sizeRangeFilter[0] : undefined,
+    maxSize: sizeRangeFilter[1] < 100 * 1024 * 1024 ? sizeRangeFilter[1] : undefined,
+  }), [currentPage, searchQuery, fileTypeFilter, sortBy, sortOrder, dateRangeFilter, sizeRangeFilter]);
 
-  const [activeTab, setActiveTab] = useState('all');
+  // API hooks
+  const { data: filesData, isLoading: filesLoading, error: filesError, refetch: refetchFiles } = useFiles(queryParams);
+  const { data: foldersData, isLoading: foldersLoading } = useFolders();
+  const { data: storageQuota } = useStorageQuota();
+  const { data: storageAnalytics } = useStorageAnalytics();
+  
+  // Mutations
+  const deleteFile = useFileDelete();
+  const bulkDelete = useBulkDelete();
+  const renameFile = useFileRename();
+  const fileUpload = useFileUpload();
+  const multipleFileUpload = useMultipleFileUpload();
+  const createFolder = useCreateFolder();
 
-  useEffect(() => {
-    setFiles(mockFiles);
-    setFolders(mockFolders);
-  }, [setFiles, setFolders]);
+  const files = filesData?.files || [];
+  const totalFiles = filesData?.total || 0;
+  const folders = foldersData || [];
 
-  const breadcrumbs = [
-    { label: 'Dashboard', href: '/dashboard' },
-    { label: 'Files' }
-  ];
-
+  // Event handlers
   const handleFileSelect = (file: FileItem) => {
     if (selectedFiles.includes(file.id)) {
-      deselectFile(file.id);
+      setSelectedFiles(prev => prev.filter(id => id !== file.id));
     } else {
-      selectFile(file.id);
+      setSelectedFiles(prev => [...prev, file.id]);
     }
   };
 
-  const handleFileDelete = (fileId: string) => {
-    removeFile(fileId);
+  const handleFileDelete = async (fileId: string) => {
+    try {
+      const file = files.find((f: FileItem) => f.id === fileId);
+      if (file) {
+        await deleteFile.mutateAsync(file.key);
+        refetchFiles();
+      }
+    } catch (error: any) {
+      console.error('Delete failed:', error);
+    }
   };
 
   const handleFileDownload = (fileId: string) => {
-    console.log('Download file:', fileId);
+    const file = files.find((f: FileItem) => f.id === fileId);
+    if (file) {
+      // Create download link
+      const link = document.createElement('a');
+      link.href = `/api/files/download/${fileId}`;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Download started');
+    }
   };
 
-  const handleFileRename = (fileId: string, newName: string) => {
-    console.log('Rename file:', fileId, newName);
+  const handleFileRename = async (fileId: string, newName: string) => {
+    try {
+      await renameFile.mutateAsync({ fileId, newName });
+      refetchFiles();
+    } catch (error: any) {
+      console.error('Rename failed:', error);
+    }
   };
 
   const handleFilePreview = (file: FileItem) => {
     setPreviewFile(file);
-    togglePreview();
+    setShowPreview(true);
   };
 
   const handleBulkDownload = () => {
-    console.log('Bulk download:', selectedFiles);
+    selectedFiles.forEach(fileId => {
+      handleFileDownload(fileId);
+    });
   };
 
-  const handleBulkDelete = () => {
-    selectedFiles.forEach(fileId => removeFile(fileId));
-    deselectAllFiles();
+  const handleBulkDelete = async () => {
+    try {
+      const filesToDelete = files.filter((f: FileItem) => selectedFiles.includes(f.id));
+      const keys = filesToDelete.map((f: FileItem) => f.key);
+      await bulkDelete.mutateAsync(keys);
+      setSelectedFiles([]);
+      refetchFiles();
+    } catch (error: any) {
+      console.error('Bulk delete failed:', error);
+    }
   };
 
   const handleBulkMove = (targetFolder: string) => {
     console.log('Move files to folder:', targetFolder, selectedFiles);
+    // TODO: Implement bulk move functionality
   };
 
-  const handleUploadCancel = (uploadId: string) => {
-    uploadManager.cancelUpload(uploadId);
-    removeFromUploadQueue(uploadId);
+  const handleSelectAll = () => {
+    setSelectedFiles(files.map((f: FileItem) => f.id));
   };
 
-  const handleUploadRetry = (uploadId: string) => {
-    uploadManager.retryUpload(uploadId);
+  const handleDeselectAll = () => {
+    setSelectedFiles([]);
   };
 
-  const handleUploadPause = (uploadId: string) => {
-    uploadManager.pauseUpload(uploadId);
-    setUploadStatus(uploadId, 'paused');
+  const handleUpload = async (files: File[], purpose?: string) => {
+    try {
+      if (files.length === 1) {
+        await fileUpload.mutateAsync({ file: files[0], purpose });
+      } else {
+        await multipleFileUpload.mutateAsync({ files, purpose });
+      }
+      refetchFiles();
+      setShowUploadModal(false);
+    } catch (error: any) {
+      console.error('Upload failed:', error);
+    }
   };
 
-  const handleUploadResume = (uploadId: string) => {
-    uploadManager.resumeUpload(uploadId);
-    setUploadStatus(uploadId, 'uploading');
+  const handleFolderCreate = async (parentId: string, name: string) => {
+    try {
+      await createFolder.mutateAsync({ name, parentPath: parentId !== 'root' ? parentId : undefined });
+      // Refetch folders would happen here if we had a folders refetch function
+    } catch (error: any) {
+      console.error('Create folder failed:', error);
+    }
   };
 
-  const handleFolderSelect = (folderId: string) => {
-    console.log('Selected folder:', folderId);
+  const handleSorting = (field: 'name' | 'size' | 'date' | 'type') => {
+    const newOrder = sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc';
+    setSortBy(field);
+    setSortOrder(newOrder);
   };
 
-  const handleFolderCreate = (parentId: string, name: string) => {
-    createFolder(name, parentId);
-  };
-
-  const handleFolderDelete = (folderId: string) => {
-    deleteFolder(folderId);
-  };
-
-  const handleFolderRename = (folderId: string, newName: string) => {
-    renameFolder(folderId, newName);
-  };
-
-  const handleFolderToggleExpand = (folderId: string) => {
-    toggleFolderExpand(folderId);
-  };
-
-  const filteredFiles = files.filter(file => {
+  // Filter files based on current tab
+  const filteredFiles = files.filter((file: FileItem) => {
     const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = fileTypeFilter === 'all' || file.type.includes(fileTypeFilter);
     const matchesSize = file.size >= sizeRangeFilter[0] && file.size <= sizeRangeFilter[1];
@@ -206,8 +191,61 @@ export default function FilesPage() {
     if (dateRangeFilter.from && file.lastModified < dateRangeFilter.from) matchesDate = false;
     if (dateRangeFilter.to && file.lastModified > dateRangeFilter.to) matchesDate = false;
     
-    return matchesSearch && matchesType && matchesSize && matchesDate;
+    let matchesTab = true;
+    if (activeTab === 'recent') {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      matchesTab = file.lastModified > weekAgo;
+    }
+    // TODO: Add favorites filter when favorites are implemented
+    
+    return matchesSearch && matchesType && matchesSize && matchesDate && matchesTab;
   });
+
+  const breadcrumbs = [
+    { label: 'Dashboard', href: '/dashboard' },
+    { label: 'Files' }
+  ];
+
+  // Loading and error states
+  if (filesLoading) {
+    return (
+      <FilesDashboardShell
+        title="Files Management"
+        description="Manage and organize your files"
+        breadcrumbs={breadcrumbs}
+      >
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="lg:col-span-3 space-y-6">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-96 w-full" />
+            </div>
+            <div className="space-y-6">
+              <Skeleton className="h-64 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          </div>
+        </div>
+      </FilesDashboardShell>
+    );
+  }
+
+  if (filesError) {
+    return (
+      <FilesDashboardShell
+        title="Files Management"
+        description="Manage and organize your files"
+        breadcrumbs={breadcrumbs}
+      >
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Failed to load files. Please try again later.
+          </AlertDescription>
+        </Alert>
+      </FilesDashboardShell>
+    );
+  }
 
   return (
     <>
@@ -216,10 +254,25 @@ export default function FilesPage() {
         description="Manage and organize your files"
         breadcrumbs={breadcrumbs}
         actions={
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Upload Files
-          </Button>
+          <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Upload Files
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Upload Files</DialogTitle>
+              </DialogHeader>
+              <FileUploadZone
+                onUpload={handleUpload}
+                acceptedTypes={['*/*']}
+                maxSize={50 * 1024 * 1024} // 50MB
+                maxFiles={10}
+              />
+            </DialogContent>
+          </Dialog>
         }
       >
         <div className="space-y-6">
@@ -232,14 +285,14 @@ export default function FilesPage() {
                 onSearchChange={setSearchQuery}
                 fileType={fileTypeFilter}
                 onFileTypeChange={setFileTypeFilter}
-                dateRange={dateRangeFilter}
+                dateRange={{ from: dateRangeFilter.from, to: dateRangeFilter.to }}
                 onDateRangeChange={setDateRangeFilter}
                 sizeRange={sizeRangeFilter}
                 onSizeRangeChange={setSizeRangeFilter}
                 onReset={() => {
                   setSearchQuery('');
                   setFileTypeFilter('all');
-                  setDateRangeFilter({ from: undefined, to: undefined });
+                  setDateRangeFilter({});
                   setSizeRangeFilter([0, 100 * 1024 * 1024]);
                 }}
               />
@@ -289,9 +342,9 @@ export default function FilesPage() {
                       onFileSelect={handleFileSelect}
                       onFileDelete={handleFileDelete}
                       onFileDownload={handleFileDownload}
-                      sortBy={sortBy}
+                      sortBy={sortBy === 'date' ? 'date' : sortBy}
                       sortOrder={sortOrder}
-                      onSort={setSorting}
+                      onSort={handleSorting}
                     />
                   )}
                 </CardContent>
@@ -299,24 +352,28 @@ export default function FilesPage() {
             </div>
 
             <div className="space-y-6">
-              <FolderTree
-                folders={folders}
-                selectedFolder="root"
-                onFolderSelect={handleFolderSelect}
-                onFolderCreate={handleFolderCreate}
-                onFolderDelete={handleFolderDelete}
-                onFolderRename={handleFolderRename}
-                expandedFolders={expandedFolders}
-                onToggleExpand={handleFolderToggleExpand}
-              />
+              {!foldersLoading && (
+                <FolderTree
+                  folders={folders}
+                  selectedFolder="root"
+                  onFolderSelect={(folderId) => console.log('Selected folder:', folderId)}
+                  onFolderCreate={handleFolderCreate}
+                  onFolderDelete={(folderId) => console.log('Delete folder:', folderId)}
+                  onFolderRename={(folderId, newName) => console.log('Rename folder:', folderId, newName)}
+                  expandedFolders={[]}
+                  onToggleExpand={(folderId) => console.log('Toggle folder:', folderId)}
+                />
+              )}
 
-              <StorageQuotaDisplay
-                used={10.8}
-                total={50}
-                unit="GB"
-                breakdown={mockStorageBreakdown}
-                showDetails={true}
-              />
+              {storageQuota && (
+                <StorageQuotaDisplay
+                  used={storageQuota.used / (1024 * 1024 * 1024)} // Convert to GB
+                  total={storageQuota.total / (1024 * 1024 * 1024)} // Convert to GB
+                  unit="GB"
+                  breakdown={[]}
+                  showDetails={true}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -328,40 +385,30 @@ export default function FilesPage() {
         onBulkDownload={handleBulkDownload}
         onBulkDelete={handleBulkDelete}
         onBulkMove={handleBulkMove}
-        onSelectAll={selectAllFiles}
-        onDeselectAll={deselectAllFiles}
-        totalFiles={files.length}
+        onSelectAll={handleSelectAll}
+        onDeselectAll={handleDeselectAll}
+        totalFiles={totalFiles}
       />
-
-      {/* Upload Progress */}
-      {uploadQueue.length > 0 && (
-        <div className="p-4 border rounded-lg">
-          <h3 className="text-lg font-medium mb-2">Upload Progress</h3>
-          <p className="text-sm text-muted-foreground">
-            {uploadQueue.length} file(s) uploading...
-          </p>
-        </div>
-      )}
 
       <FilePreviewModal
         file={previewFile}
         isOpen={showPreview}
         onClose={() => {
           setPreviewFile(null);
-          togglePreview();
+          setShowPreview(false);
         }}
         onDownload={() => previewFile && handleFileDownload(previewFile.id)}
         onDelete={() => previewFile && handleFileDelete(previewFile.id)}
         showNavigation={filteredFiles.length > 1}
         onNext={() => {
           if (!previewFile) return;
-          const currentIndex = filteredFiles.findIndex(f => f.id === previewFile.id);
+          const currentIndex = filteredFiles.findIndex((f: FileItem) => f.id === previewFile.id);
           const nextIndex = (currentIndex + 1) % filteredFiles.length;
           setPreviewFile(filteredFiles[nextIndex]);
         }}
         onPrevious={() => {
           if (!previewFile) return;
-          const currentIndex = filteredFiles.findIndex(f => f.id === previewFile.id);
+          const currentIndex = filteredFiles.findIndex((f: FileItem) => f.id === previewFile.id);
           const prevIndex = (currentIndex - 1 + filteredFiles.length) % filteredFiles.length;
           setPreviewFile(filteredFiles[prevIndex]);
         }}

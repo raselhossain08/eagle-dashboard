@@ -1,4 +1,6 @@
-interface WebSocketMessage {
+import { AuthCookieService } from '@/lib/auth/cookie-service';
+
+export interface WebSocketMessage {
   type: string;
   payload: any;
   timestamp: string;
@@ -70,8 +72,8 @@ class SupportWebSocketService {
   }
 
   private sendAuthentication() {
-    // In a real implementation, you would send an authentication token
-    const token = localStorage.getItem('auth_token');
+    // Use cookies for authentication token
+    const token = AuthCookieService.getAccessToken();
     if (token) {
       this.sendMessage('AUTHENTICATE', { token });
     }

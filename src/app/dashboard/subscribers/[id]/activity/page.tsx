@@ -12,52 +12,20 @@ import {
   Settings,
   MessageSquare,
   ShoppingCart,
-  AlertTriangle
+  AlertTriangle,
+  FileText,
+  Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSubscriber } from '@/hooks/useSubscribers';
-
-const mockActivities = [
-  {
-    id: 'act_1',
-    type: 'subscription_change',
-    description: 'Upgraded to Premium Plan',
-    timestamp: '2024-01-15T14:30:00Z',
-    metadata: { plan: 'Premium', amount: 49.99 }
-  },
-  {
-    id: 'act_2',
-    type: 'purchase',
-    description: 'Made a purchase',
-    timestamp: '2024-01-10T11:20:00Z',
-    metadata: { amount: 99.99, items: 2 }
-  },
-  {
-    id: 'act_3',
-    type: 'profile_update',
-    description: 'Updated profile information',
-    timestamp: '2024-01-08T16:45:00Z',
-    metadata: { fields: ['phone', 'address'] }
-  },
-  {
-    id: 'act_4',
-    type: 'login',
-    description: 'Logged into account',
-    timestamp: '2024-01-08T09:15:00Z',
-    metadata: { ip: '192.168.1.1', device: 'Chrome on Windows' }
-  },
-  {
-    id: 'act_5',
-    type: 'support_ticket',
-    description: 'Submitted support ticket',
-    timestamp: '2024-01-05T13:20:00Z',
-    metadata: { ticketId: 'TSK-1234', subject: 'Billing Question' }
-  }
-];
+import { useSubscriberActivity } from '@/hooks/useBilling';
 
 const getActivityIcon = (type: string) => {
   const icons = {
     login: User,
+    transaction: CreditCard,
+    invoice: FileText,
+    subscription: CreditCard,
     purchase: ShoppingCart,
     subscription_change: CreditCard,
     profile_update: Settings,
@@ -70,6 +38,9 @@ const getActivityIcon = (type: string) => {
 const getActivityColor = (type: string) => {
   const colors = {
     login: 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-300',
+    transaction: 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300',
+    invoice: 'text-purple-600 bg-purple-100 dark:bg-purple-900 dark:text-purple-300',
+    subscription: 'text-purple-600 bg-purple-100 dark:bg-purple-900 dark:text-purple-300',
     purchase: 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300',
     subscription_change: 'text-purple-600 bg-purple-100 dark:bg-purple-900 dark:text-purple-300',
     profile_update: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300',
@@ -82,7 +53,11 @@ const getActivityColor = (type: string) => {
 export default function ActivityPage() {
   const params = useParams();
   const id = params.id as string;
-  const { data: subscriber, isLoading } = useSubscriber(id);
+  
+  const { data: subscriber, isLoading: subscriberLoading } = useSubscriber(id);
+  const { data: activities, isLoading: activitiesLoading } = useSubscriberActivity(id, { limit: 50 });
+
+  const isLoading = subscriberLoading || activitiesLoading;
 
   if (isLoading) {
     return (
@@ -140,46 +115,51 @@ export default function ActivityPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-8">
-            {mockActivities.map((activity, index) => {
-              const IconComponent = getActivityIcon(activity.type);
-              return (
-                <div key={activity.id} className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className={`p-2 rounded-full ${getActivityColor(activity.type)}`}>
-                      <IconComponent className="h-4 w-4" />
-                    </div>
-                    {index < mockActivities.length - 1 && (
-                      <div className="w-0.5 h-full bg-border mt-2" />
-                    )}
-                  </div>
-                  <div className="flex-1 space-y-1 pb-8">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium">{activity.description}</p>
-                      <Badge variant="outline" className="text-xs">
-                        {new Date(activity.timestamp).toLocaleDateString()} at{' '}
-                        {new Date(activity.timestamp).toLocaleTimeString()}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {activity.type.replace('_', ' ').toUpperCase()}
-                    </p>
-                    {activity.metadata && (
-                      <div className="text-sm text-muted-foreground mt-2">
-                        {Object.entries(activity.metadata).map(([key, value]) => (
-                          <span key={key} className="inline-block mr-3">
-                            <strong>{key}:</strong> {String(value)}
-                          </span>
-                        ))}
+          {activitiesLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <span className="ml-2">Loading activity...</span>
+            </div>
+          ) : activities && activities.length > 0 ? (
+            <div className="space-y-8">
+              {activities.map((activity, index) => {
+                const IconComponent = getActivityIcon(activity.type);
+                return (
+                  <div key={activity.id} className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                      <div className={`p-2 rounded-full ${getActivityColor(activity.type)}`}>
+                        <IconComponent className="h-4 w-4" />
                       </div>
-                    )}
+                      {index < activities.length - 1 && (
+                        <div className="w-0.5 h-full bg-border mt-2" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-1 pb-8">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">{activity.description}</p>
+                        <Badge variant="outline" className="text-xs">
+                          {new Date(activity.timestamp).toLocaleDateString()} at{' '}
+                          {new Date(activity.timestamp).toLocaleTimeString()}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {activity.type.replace('_', ' ').toUpperCase()}
+                      </p>
+                      {activity.metadata && Object.keys(activity.metadata).length > 0 && (
+                        <div className="text-sm text-muted-foreground mt-2">
+                          {Object.entries(activity.metadata).map(([key, value]) => (
+                            <span key={key} className="inline-block mr-3">
+                              <strong>{key}:</strong> {String(value)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {mockActivities.length === 0 && (
+                );
+              })}
+            </div>
+          ) : (
             <div className="text-center text-muted-foreground py-8">
               No activity recorded for this subscriber
             </div>

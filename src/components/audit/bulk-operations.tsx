@@ -9,7 +9,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Download, Archive, AlertTriangle, CheckCircle, X } from 'lucide-react';
 import { AuditLog } from '@/types/audit';
-import { useCleanupOldLogs } from '@/hooks/use-audit';
+import { useCleanupOldLogs, useBulkDeleteLogs, useBulkExportLogs } from '@/hooks/use-audit';
+import { auditService } from '@/lib/services/audit.service';
 
 interface BulkOperationsProps {
   selectedLogs: string[];
@@ -29,6 +30,8 @@ export function BulkOperations({
   const [cleanupDays, setCleanupDays] = useState(30);
   
   const cleanupMutation = useCleanupOldLogs();
+  const bulkDeleteMutation = useBulkDeleteLogs();
+  const bulkExportMutation = useBulkExportLogs();
 
   const selectedLogsData = logs.filter(log => selectedLogs.includes(log.id));
 
@@ -36,19 +39,32 @@ export function BulkOperations({
     onSelectionChange(checked ? logs.map(log => log.id) : []);
   };
 
-  const handleBulkExport = () => {
-    const selectedData = selectedLogsData;
-    const csvContent = convertToCSV(selectedData);
-    downloadCSV(csvContent, `bulk-audit-logs-${new Date().toISOString().split('T')[0]}.csv`);
-    onBulkActionComplete?.();
+  const handleBulkExport = async () => {
+    try {
+      const blob = await bulkExportMutation.mutateAsync(selectedLogs);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `bulk-audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      onBulkActionComplete?.();
+    } catch (error) {
+      console.error('Bulk export failed:', error);
+    }
   };
 
   const handleBulkDelete = async () => {
-    // Implement bulk delete logic
-    console.log('Deleting logs:', selectedLogs);
-    setIsDeleteDialogOpen(false);
-    onSelectionChange([]);
-    onBulkActionComplete?.();
+    try {
+      await bulkDeleteMutation.mutateAsync(selectedLogs);
+      setIsDeleteDialogOpen(false);
+      onSelectionChange([]);
+      onBulkActionComplete?.();
+    } catch (error) {
+      console.error('Bulk delete failed:', error);
+    }
   };
 
   const handleCleanupOldLogs = async () => {
@@ -59,34 +75,6 @@ export function BulkOperations({
     } catch (error) {
       console.error('Cleanup failed:', error);
     }
-  };
-
-  const convertToCSV = (data: AuditLog[]) => {
-    const headers = ['Timestamp', 'Admin Email', 'Action', 'Resource Type', 'Resource ID', 'Status', 'IP Address'];
-    const csvRows = [
-      headers.join(','),
-      ...data.map(log => [
-        new Date(log.timestamp).toISOString(),
-        `"${log.adminUserEmail}"`,
-        `"${log.action}"`,
-        `"${log.resourceType || ''}"`,
-        `"${log.resourceId || ''}"`,
-        `"${log.status}"`,
-        `"${log.ipAddress || ''}"`
-      ].join(','))
-    ];
-    return csvRows.join('\n');
-  };
-
-  const downloadCSV = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -116,9 +104,10 @@ export function BulkOperations({
               variant="outline"
               size="sm"
               onClick={handleBulkExport}
+              disabled={bulkExportMutation.isPending}
             >
               <Download className="h-4 w-4 mr-2" />
-              Export Selected
+              {bulkExportMutation.isPending ? 'Exporting...' : 'Export Selected'}
             </Button>
 
             <DropdownMenu>
@@ -203,9 +192,13 @@ export function BulkOperations({
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleBulkDelete}>
+            <Button 
+              variant="destructive" 
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteMutation.isPending}
+            >
               <Trash2 className="h-4 w-4 mr-2" />
-              Delete {selectedLogs.length} Logs
+              {bulkDeleteMutation.isPending ? 'Deleting...' : `Delete ${selectedLogs.length} Logs`}
             </Button>
           </DialogFooter>
         </DialogContent>

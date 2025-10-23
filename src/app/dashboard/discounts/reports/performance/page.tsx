@@ -1,37 +1,95 @@
 // app/dashboard/discounts/reports/performance/page.tsx
 'use client';
 
+import { useState } from 'react';
 import { DiscountsDashboardShell } from '@/components/discounts/discounts-dashboard-shell';
 import { DiscountPerformanceChart } from '@/components/discounts/discount-performance-chart';
 import { ConversionFunnelChart } from '@/components/discounts/conversion-funnel-chart';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, Filter, BarChart3, TrendingUp, Users, Target, DollarSign } from 'lucide-react';
-import { useState } from 'react';
-
-const mockPerformanceData = [
-  { code: 'SUMMER25', redemptions: 156, revenue: 45200, discountAmount: 11200, roi: 4.03 },
-  { code: 'WELCOME10', redemptions: 134, revenue: 38900, discountAmount: 8900, roi: 4.37 },
-  { code: 'BLACKFRIDAY', redemptions: 98, revenue: 56700, discountAmount: 14300, roi: 3.97 },
-  { code: 'NEWYEAR20', redemptions: 87, revenue: 31200, discountAmount: 7800, roi: 4.00 },
-  { code: 'SPRING15', redemptions: 76, revenue: 28900, discountAmount: 6700, roi: 4.31 },
-  { code: 'FALL30', redemptions: 65, revenue: 42300, discountAmount: 12800, roi: 3.30 },
-  { code: 'WINTER25', redemptions: 54, revenue: 19800, discountAmount: 5200, roi: 3.81 },
-];
-
-const mockFunnelData = [
-  { step: 'Page Views', count: 10000, conversionRate: 100 },
-  { step: 'Add to Cart', count: 2500, conversionRate: 25 },
-  { step: 'Checkout Start', count: 1500, conversionRate: 15 },
-  { step: 'Discount Applied', count: 800, conversionRate: 8 },
-  { step: 'Purchase Complete', count: 650, conversionRate: 6.5 },
-];
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Download, Filter, BarChart3, TrendingUp, Users, Target, DollarSign, AlertTriangle } from 'lucide-react';
+import { useDiscountsOverview, useExportDiscounts } from '@/hooks/use-discounts';
+import { useRedemptionStats } from '@/hooks/use-redemptions';
+import { toast } from 'sonner';
 
 export default function PerformanceReportsPage() {
   const [timeRange, setTimeRange] = useState('30d');
   const [metric, setMetric] = useState<'redemptions' | 'revenue' | 'roi'>('revenue');
   const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar');
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Calculate date range based on selected timeRange
+  const getDateRange = () => {
+    const endDate = new Date();
+    const startDate = new Date();
+    
+    switch (timeRange) {
+      case '7d':
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case '30d':
+        startDate.setDate(endDate.getDate() - 30);
+        break;
+      case '90d':
+        startDate.setDate(endDate.getDate() - 90);
+        break;
+      case '1y':
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+    }
+    
+    return { from: startDate, to: endDate };
+  };
+
+  const dateRange = getDateRange();
+
+  // Fetch real data
+  const { 
+    data: overviewData, 
+    isLoading: overviewLoading, 
+    error: overviewError 
+  } = useDiscountsOverview();
+
+  const { 
+    data: statsData, 
+    isLoading: statsLoading,
+    error: statsError 
+  } = useRedemptionStats(dateRange);
+
+  const exportDiscounts = useExportDiscounts();
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      const blob = await exportDiscounts.mutateAsync({
+        format: 'csv',
+        filters: { 
+          isActive: true,
+          // Add date range to filters if needed
+        }
+      });
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `performance-report-${timeRange}-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast.success('Performance report exported successfully');
+    } catch (error: any) {
+      toast.error('Failed to export performance report');
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const actions = (
     <div className="flex space-x-2">
@@ -47,12 +105,67 @@ export default function PerformanceReportsPage() {
           <SelectItem value="1y">Last year</SelectItem>
         </SelectContent>
       </Select>
-      <Button variant="outline" size="sm">
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={handleExport}
+        disabled={isExporting || overviewLoading}
+      >
         <Download className="mr-2 h-4 w-4" />
-        Export
+        {isExporting ? 'Exporting...' : 'Export'}
       </Button>
     </div>
   );
+
+  // Handle error states
+  if (overviewError || statsError) {
+    return (
+      <DiscountsDashboardShell
+        title="Performance Reports"
+        description="Detailed analytics and performance metrics for all discount campaigns"
+        actions={actions}
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Discounts', href: '/dashboard/discounts' },
+          { label: 'Reports', href: '/dashboard/discounts/reports' },
+          { label: 'Performance' }
+        ]}
+      >
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Failed to load performance data: {(overviewError || statsError)?.message}
+          </AlertDescription>
+        </Alert>
+      </DiscountsDashboardShell>
+    );
+  }
+
+  // Transform data for performance chart
+  const performanceData = overviewData?.topPerformingDiscounts?.slice(0, 7).map(discount => ({
+    code: discount.code,
+    redemptions: discount.timesRedeemed || 0,
+    revenue: (discount.timesRedeemed || 0) * 100, // Simplified calculation - would need real revenue data
+    discountAmount: (discount.timesRedeemed || 0) * (discount.value || 0),
+    roi: discount.timesRedeemed && discount.value ? 
+      (((discount.timesRedeemed * 100) - (discount.timesRedeemed * discount.value)) / (discount.timesRedeemed * discount.value)) : 0
+  })) || [];
+
+  // Transform funnel data
+  const funnelData = statsData?.conversionFunnel || [
+    { step: 'Page Views', count: 0, conversionRate: 0 },
+    { step: 'Add to Cart', count: 0, conversionRate: 0 },
+    { step: 'Checkout Start', count: 0, conversionRate: 0 },
+    { step: 'Discount Applied', count: 0, conversionRate: 0 },
+    { step: 'Purchase Complete', count: 0, conversionRate: 0 },
+  ];
+
+  // Calculate key metrics
+  const totalRevenue = statsData?.totalRevenue || 0;
+  const totalRedemptions = statsData?.totalRedemptions || 0;
+  const averageROI = performanceData.length > 0 ? 
+    performanceData.reduce((sum, item) => sum + item.roi, 0) / performanceData.length : 0;
+  const conversionRate = statsData?.conversionRate || 0;
 
   return (
     <DiscountsDashboardShell
@@ -75,9 +188,13 @@ export default function PerformanceReportsPage() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$289.5K</div>
+              {(overviewLoading || statsLoading) ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <div className="text-2xl font-bold">${totalRevenue.toLocaleString()}</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                +18.2% from last period
+                {timeRange} period
               </p>
             </CardContent>
           </Card>
@@ -88,9 +205,13 @@ export default function PerformanceReportsPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1,247</div>
+              {(overviewLoading || statsLoading) ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className="text-2xl font-bold">{totalRedemptions.toLocaleString()}</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                +12.4% from last period
+                {timeRange} period
               </p>
             </CardContent>
           </Card>
@@ -101,9 +222,13 @@ export default function PerformanceReportsPage() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">4.2x</div>
+              {(overviewLoading || statsLoading) ? (
+                <Skeleton className="h-8 w-12" />
+              ) : (
+                <div className="text-2xl font-bold">{averageROI.toFixed(1)}x</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                +0.3x from last period
+                Average return on investment
               </p>
             </CardContent>
           </Card>
@@ -114,9 +239,13 @@ export default function PerformanceReportsPage() {
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12.4%</div>
+              {(overviewLoading || statsLoading) ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className="text-2xl font-bold">{conversionRate.toFixed(1)}%</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                +2.1% from last period
+                Discount to purchase conversion
               </p>
             </CardContent>
           </Card>
@@ -157,11 +286,15 @@ export default function PerformanceReportsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <DiscountPerformanceChart
-              data={mockPerformanceData}
-              metric={metric}
-              chartType={chartType}
-            />
+            {(overviewLoading || statsLoading) ? (
+              <Skeleton className="h-[400px] w-full" />
+            ) : (
+              <DiscountPerformanceChart
+                data={performanceData}
+                metric={metric}
+                chartType={chartType}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -174,7 +307,11 @@ export default function PerformanceReportsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ConversionFunnelChart data={mockFunnelData} />
+            {(overviewLoading || statsLoading) ? (
+              <Skeleton className="h-[300px] w-full" />
+            ) : (
+              <ConversionFunnelChart data={funnelData} />
+            )}
           </CardContent>
         </Card>
 
@@ -187,29 +324,54 @@ export default function PerformanceReportsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockPerformanceData.slice(0, 5).map((item, index) => (
-                <div key={item.code} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
-                      {index + 1}
+            {(overviewLoading || statsLoading) ? (
+              <div className="space-y-4">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                      <div>
+                        <Skeleton className="h-4 w-20 mb-2" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-medium">{item.code}</div>
+                    <div className="text-right">
+                      <Skeleton className="h-4 w-16 mb-2" />
+                      <Skeleton className="h-3 w-12" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {performanceData.slice(0, 5).map((item, index) => (
+                  <div key={item.code} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="font-medium">{item.code}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {item.redemptions} redemptions
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-medium">${item.revenue.toLocaleString()}</div>
                       <div className="text-sm text-muted-foreground">
-                        {item.redemptions} redemptions
+                        ROI: {item.roi.toFixed(1)}x
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-medium">${item.revenue.toLocaleString()}</div>
-                    <div className="text-sm text-muted-foreground">
-                      ROI: {item.roi}x
-                    </div>
+                ))}
+                {performanceData.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No performance data available for the selected period
                   </div>
-                </div>
-              ))}
-            </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

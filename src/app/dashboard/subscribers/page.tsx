@@ -24,7 +24,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useSubscribers } from '@/hooks/useSubscribers';
+import { subscribersService } from '@/lib/api/subscribers';
 import { SubscriberProfile } from '@/types/subscribers';
+import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 
 export default function SubscribersDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,36 +39,10 @@ export default function SubscribersDashboard() {
     limit: 10,
   });
 
-  const stats = [
-    {
-      title: 'Total Subscribers',
-      value: '2,847',
-      description: '+12% from last month',
-      icon: Users,
-      color: 'text-blue-600',
-    },
-    {
-      title: 'Active Subscriptions',
-      value: '2,451',
-      description: '+8% from last month',
-      icon: Activity,
-      color: 'text-green-600',
-    },
-    {
-      title: 'Monthly Growth',
-      value: '+5.2%',
-      description: '+124 new subscribers',
-      icon: TrendingUp,
-      color: 'text-purple-600',
-    },
-    {
-      title: 'Average LTV',
-      value: '$1,247',
-      description: '+2.1% from last month',
-      icon: DollarSign,
-      color: 'text-orange-600',
-    },
-  ];
+  const { data: analyticsData } = useQuery({
+    queryKey: ['subscriber-analytics'],
+    queryFn: () => subscribersService.getSubscriberAnalytics(),
+  });
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -85,6 +62,37 @@ export default function SubscribersDashboard() {
     };
     return variants[kycStatus as keyof typeof variants] || variants.not_started;
   };
+
+  const stats = [
+    {
+      title: 'Total Subscribers',
+      value: analyticsData?.totalSubscribers?.toLocaleString() || '0',
+      description: `+${analyticsData?.newSubscribersLast30Days || 0} in last 30 days`,
+      icon: Users,
+      color: 'text-blue-600',
+    },
+    {
+      title: 'Active Subscriptions',
+      value: analyticsData?.activeSubscribers?.toLocaleString() || '0',
+      description: `${analyticsData?.totalSubscribers ? Math.round((analyticsData.activeSubscribers / analyticsData.totalSubscribers) * 100) : 0}% of total`,
+      icon: Activity,
+      color: 'text-green-600',
+    },
+    {
+      title: 'Monthly Growth',
+      value: analyticsData?.newSubscribersLast30Days ? `+${analyticsData.newSubscribersLast30Days}` : '0',
+      description: `${analyticsData?.newSubscribersLast7Days || 0} in last 7 days`,
+      icon: TrendingUp,
+      color: 'text-purple-600',
+    },
+    {
+      title: 'Average LTV',
+      value: `$${analyticsData?.averageLifetimeValue?.toLocaleString() || '0'}`,
+      description: `${analyticsData?.churnRate?.toFixed(1) || '0'}% churn rate`,
+      icon: DollarSign,
+      color: 'text-orange-600',
+    },
+  ];
 
   if (error) {
     return (
@@ -248,9 +256,11 @@ export default function SubscribersDashboard() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Eye className="h-4 w-4 mr-2" />
-                                View
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/subscribers/${subscriber.id}`}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  View
+                                </Link>
                               </DropdownMenuItem>
                               <DropdownMenuItem>
                                 <Edit className="h-4 w-4 mr-2" />

@@ -13,8 +13,10 @@ import { formatCurrency } from '@/lib/utils';
 interface PlansTableProps {
   data: Plan[];
   pagination: PaginationState;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (size: number) => void;
+  filters?: any;
+  onFiltersChange?: (filters: any) => void;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
   onEdit: (plan: Plan) => void;
   onDelete: (planId: string) => void;
   onToggleStatus: (planId: string, isActive: boolean) => void;
@@ -25,6 +27,10 @@ interface PlansTableProps {
 export function PlansTable({ 
   data, 
   pagination, 
+  filters,
+  onFiltersChange,
+  onPageChange,
+  onPageSizeChange,
   onEdit, 
   onDelete, 
   onToggleStatus, 
@@ -42,9 +48,10 @@ export function PlansTable({
   }
 
   const getIntervalText = (plan: Plan) => {
+    if (!plan.interval) return 'Unknown';
     if (plan.interval === 'one_time') return 'One Time';
-    if (plan.intervalCount === 1) return `Per ${plan.interval}`;
-    return `Every ${plan.intervalCount} ${plan.interval}s`;
+    if ((plan.intervalCount || 1) === 1) return `Per ${plan.interval}`;
+    return `Every ${plan.intervalCount || 1} ${plan.interval}s`;
   };
 
   return (
@@ -62,11 +69,11 @@ export function PlansTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map((plan) => (
+          {data && data.length > 0 ? data.map((plan) => (
             <TableRow key={plan.id}>
               <TableCell className="font-medium">
                 <div>
-                  <div>{plan.name}</div>
+                  <div>{plan.name || 'Unnamed Plan'}</div>
                   {plan.description && (
                     <div className="text-sm text-muted-foreground">
                       {plan.description}
@@ -76,17 +83,17 @@ export function PlansTable({
               </TableCell>
               <TableCell>
                 <div className="font-medium">
-                  {formatCurrency(plan.price, plan.currency)}
+                  {formatCurrency(plan.price || 0, plan.currency || 'USD')}
                 </div>
-                {plan.pricePerSeat > 0 && (
+                {(plan.pricePerSeat || 0) > 0 && (
                   <div className="text-sm text-muted-foreground">
-                    +{formatCurrency(plan.pricePerSeat, plan.currency)}/seat
+                    +{formatCurrency(plan.pricePerSeat, plan.currency || 'USD')}/seat
                   </div>
                 )}
               </TableCell>
               <TableCell>
                 <div>{getIntervalText(plan)}</div>
-                {plan.trialPeriodDays > 0 && (
+                {(plan.trialPeriodDays || 0) > 0 && (
                   <div className="text-sm text-muted-foreground">
                     {plan.trialPeriodDays} day trial
                   </div>
@@ -95,11 +102,17 @@ export function PlansTable({
               <TableCell>
                 <div className="max-w-xs">
                   <div className="text-sm line-clamp-2">
-                    {plan.features.slice(0, 2).join(', ')}
-                    {plan.features.length > 2 && (
-                      <span className="text-muted-foreground">
-                        ... +{plan.features.length - 2} more
-                      </span>
+                    {plan.features && plan.features.length > 0 ? (
+                      <>
+                        {plan.features.slice(0, 2).join(', ')}
+                        {plan.features.length > 2 && (
+                          <span className="text-muted-foreground">
+                            ... +{plan.features.length - 2} more
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">No features listed</span>
                     )}
                   </div>
                 </div>
@@ -107,7 +120,7 @@ export function PlansTable({
               <TableCell>
                 <div className="flex items-center space-x-2">
                   <Switch
-                    checked={plan.isActive}
+                    checked={plan.isActive || false}
                     onCheckedChange={(checked) => onToggleStatus(plan.id, checked)}
                   />
                   <Badge variant={plan.isActive ? "default" : "secondary"}>
@@ -118,7 +131,7 @@ export function PlansTable({
               <TableCell>
                 <div className="flex items-center space-x-2">
                   <Switch
-                    checked={plan.isVisible}
+                    checked={plan.isVisible || false}
                     onCheckedChange={(checked) => onToggleVisibility(plan.id, checked)}
                   />
                   {plan.isVisible ? (
@@ -147,17 +160,49 @@ export function PlansTable({
                 </div>
               </TableCell>
             </TableRow>
-          ))}
+          )) : (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                No plans available
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
 
-      {data.length === 0 && (
+      {(!data || data.length === 0) && !isLoading && (
         <div className="text-center py-8 text-muted-foreground">
           No plans found. Create your first billing plan to get started.
         </div>
       )}
 
-      {/* Pagination would go here */}
+      {/* Pagination */}
+      {pagination && pagination.total > 0 && (
+        <div className="flex items-center justify-between px-4 py-3 border-t">
+          <div className="text-sm text-muted-foreground">
+            Showing {data?.length || 0} of {pagination.total} plans
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => onPageChange?.(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+              className="px-2 py-1 text-sm border rounded disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-sm">
+              Page {pagination.page} of {pagination.totalPages || Math.ceil(pagination.total / pagination.pageSize)}
+            </span>
+            <button
+              onClick={() => onPageChange?.(pagination.page + 1)}
+              disabled={pagination.page >= (pagination.totalPages || Math.ceil(pagination.total / pagination.pageSize))}
+              className="px-2 py-1 text-sm border rounded disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

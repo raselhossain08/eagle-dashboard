@@ -33,12 +33,13 @@ const templateFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   content: z.string().min(1, 'Content is required'),
   type: z.string().min(1, 'Type is required'),
-  locale: z.string().min(1, 'Locale is required'),
-  variables: z.array(z.any()),
-  termsVersion: z.string().min(1, 'Terms version is required'),
-  privacyVersion: z.string().min(1, 'Privacy version is required'),
-  isActive: z.boolean().default(true),
-  isDefault: z.boolean().default(false),
+  locale: z.string().optional(),
+  variables: z.array(z.any()).optional(),
+  termsVersion: z.string().optional(),
+  privacyVersion: z.string().optional(),
+  version: z.string().optional(),
+  isActive: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
 })
 
 type TemplateFormValues = z.infer<typeof templateFormSchema>
@@ -75,8 +76,9 @@ export function TemplateEditor({
       variables: template?.variables || [],
       termsVersion: template?.termsVersion || '1.0',
       privacyVersion: template?.privacyVersion || '1.0',
-      isActive: template?.isActive ?? true,
-      isDefault: template?.isDefault ?? false,
+      version: template?.version || '1.0',
+      isActive: template?.isActive !== undefined ? template.isActive : true,
+      isDefault: template?.isDefault !== undefined ? template.isDefault : false,
     },
   })
 
@@ -140,7 +142,7 @@ export function TemplateEditor({
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
-      <DialogContent className="max-w-6xl max-h-[90vh]">
+      <DialogContent className="w-[80vw] max-w-[80vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Template' : 'Create New Template'}
@@ -198,7 +200,7 @@ export function TemplateEditor({
                 )}
               />
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 col-span-2">
                 <FormField
                   control={form.control}
                   name="isActive"
@@ -318,7 +320,7 @@ export function TemplateEditor({
               </TabsContent>
 
               <TabsContent value="settings" className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <FormField
                     control={form.control}
                     name="termsVersion"
@@ -339,6 +341,20 @@ export function TemplateEditor({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Privacy Version</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., 1.0, 2.1" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="version"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Template Version</FormLabel>
                         <FormControl>
                           <Input placeholder="e.g., 1.0, 2.1" {...field} />
                         </FormControl>

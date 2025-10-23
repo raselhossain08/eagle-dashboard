@@ -1,6 +1,6 @@
 'use client';
 
-import { useSystemHealth, useHealthHistory } from '@/hooks/useHealth';
+import { useSystemHealth, useHealthHistory, useHealthAlerts } from '@/hooks/useHealth';
 import { useHealthStore } from '@/stores/health-store';
 import { useHealthWebSocket } from '@/hooks/useHealthWebSocket';
 import { HealthOverview } from '@/components/HealthOverview';
@@ -12,13 +12,15 @@ import { HealthHistory } from '@/components/health/HealthHistory';
 import { ExportHealthReport } from '@/components/health/ExportHealthReport';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertTriangle, RefreshCw, BarChart3, History } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, RefreshCw, BarChart3, History, Activity } from 'lucide-react';
 import { useEffect } from 'react';
 
 export default function HealthDashboard() {
-  const { data: healthData, error, isLoading, isError } = useSystemHealth();
-  const { data: historyData } = useHealthHistory();
-  const { setHealth, alerts } = useHealthStore();
+  const { data: healthData, error, isLoading, isError, refetch } = useSystemHealth();
+  const { data: historyData } = useHealthHistory(20);
+  const { data: alertsData } = useHealthAlerts();
+  const { setHealth, startMonitoring } = useHealthStore();
 
   // Initialize WebSocket connection
   useHealthWebSocket();
@@ -30,12 +32,21 @@ export default function HealthDashboard() {
     }
   }, [healthData, setHealth]);
 
+  // Start monitoring
+  useEffect(() => {
+    startMonitoring();
+  }, [startMonitoring]);
+
+  const handleRefresh = () => {
+    refetch();
+  };
+
   if (isLoading) {
     return <HealthDashboardLoading />;
   }
 
   if (isError || !healthData) {
-    return <HealthDashboardError error={error} />;
+    return <HealthDashboardError error={error} onRetry={handleRefresh} />;
   }
 
   return (
@@ -48,7 +59,17 @@ export default function HealthDashboard() {
             Real-time monitoring of system health and performance
           </p>
         </div>
-        <ExportHealthReport healthData={healthData} historyData={historyData} />
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <ExportHealthReport healthData={healthData} historyData={historyData} />
+        </div>
       </div>
 
       {/* Main Grid */}
@@ -68,7 +89,7 @@ export default function HealthDashboard() {
                 Current Metrics
               </TabsTrigger>
               <TabsTrigger value="charts" className="flex items-center gap-2">
-                <History className="h-4 w-4" />
+                <Activity className="h-4 w-4" />
                 Trends & Charts
               </TabsTrigger>
             </TabsList>
@@ -78,7 +99,10 @@ export default function HealthDashboard() {
             </TabsContent>
             
             <TabsContent value="charts">
-              <SystemMetricsCharts metrics={healthData.systemMetrics} />
+              <SystemMetricsCharts 
+                metrics={healthData.systemMetrics} 
+                historicalData={historyData}
+              />
             </TabsContent>
           </Tabs>
         </div>
@@ -86,8 +110,16 @@ export default function HealthDashboard() {
         {/* Right Column */}
         <div className="space-y-6">
           <ServiceStatus services={healthData.services} />
-          <AlertsPanel alerts={alerts} />
-          <HealthHistory />
+          <AlertsPanel alerts={alertsData || []} />
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <History className="h-4 w-4" />
+                <h3 className="font-semibold">Health History</h3>
+              </div>
+              <HealthHistory />
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
@@ -103,6 +135,9 @@ function HealthDashboardLoading() {
           <div className="text-center">
             <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground">Loading health data...</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Connecting to backend services...
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -111,7 +146,7 @@ function HealthDashboardLoading() {
 }
 
 // Error component
-function HealthDashboardError({ error }: { error: any }) {
+function HealthDashboardError({ error, onRetry }: { error: any; onRetry: () => void }) {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <Card>
@@ -119,9 +154,13 @@ function HealthDashboardError({ error }: { error: any }) {
           <div className="text-center">
             <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Failed to load health data</h3>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mb-4">
               {error instanceof Error ? error.message : 'Unknown error occurred'}
             </p>
+            <Button onClick={onRetry} variant="outline">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Try Again
+            </Button>
           </div>
         </CardContent>
       </Card>

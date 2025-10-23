@@ -10,6 +10,13 @@ export const useSubscriptions = (params: SubscriptionsQueryParams = {}) => {
     queryKey: ['subscriptions', params],
     queryFn: () => subscriptionsService.getSubscriptions(params),
     staleTime: 2 * 60 * 1000, // 2 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on authentication errors
+      if (error instanceof Error && error.message.includes('Failed to fetch subscriptions')) {
+        return failureCount < 2;
+      }
+      return failureCount < 3;
+    },
   });
 };
 

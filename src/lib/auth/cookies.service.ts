@@ -151,4 +151,54 @@ export class CookiesService {
 
     this.setCookie(name, token, options);
   }
+
+  /**
+   * Get all Eagle-specific authentication cookies
+   */
+  static getEagleAuthCookies(): { [key: string]: string } {
+    if (this.isServer) return {};
+
+    const allCookies = this.getAllCookies();
+    const eagleCookies: { [key: string]: string } = {};
+
+    // Filter cookies that start with 'eagle_'
+    Object.entries(allCookies).forEach(([name, value]) => {
+      if (name.startsWith('eagle_')) {
+        eagleCookies[name] = value;
+      }
+    });
+
+    return eagleCookies;
+  }
+
+  /**
+   * Clear all Eagle-specific authentication cookies
+   */
+  static clearEagleAuthCookies(): void {
+    if (this.isServer) return;
+
+    const eagleCookies = this.getEagleAuthCookies();
+    Object.keys(eagleCookies).forEach(name => {
+      this.removeCookie(name);
+    });
+  }
+
+  /**
+   * Debug method to log all cookies (development only)
+   */
+  static debugCookies(): void {
+    if (this.isServer || process.env.NODE_ENV === 'production') return;
+
+    console.group('🍪 Eagle Cookies Debug');
+    const eagleCookies = this.getEagleAuthCookies();
+    
+    if (Object.keys(eagleCookies).length === 0) {
+      console.log('No Eagle authentication cookies found');
+    } else {
+      Object.entries(eagleCookies).forEach(([name, value]) => {
+        console.log(`${name}:`, value.substring(0, 50) + (value.length > 50 ? '...' : ''));
+      });
+    }
+    console.groupEnd();
+  }
 }

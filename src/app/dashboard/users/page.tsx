@@ -1,16 +1,19 @@
-// app/dashboard/users/page.tsx
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-// import { UsersTable } from '../components/UsersTable';
-// import { UserMetrics } from '../components/UserMetrics';
-// import { UserSearch } from '../components/UserSearch';
-// import { UserFilters } from '../components/UserFilters';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Filter, Users } from 'lucide-react';
+import { Plus, Download, Filter, AlertCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
-import { useUsers } from '@/hooks/useUsers';
+import { useUsers, useUpdateUserStatus, useDeleteUser } from '@/hooks/useUsers';
+import { UserMetrics } from '@/components/users/UserMetrics';
+import { UsersTable } from '@/components/users/UsersTable';
+import { UserSearch } from '@/components/users/UserSearch';
+import { UserFilters } from '@/components/users/UserFilters';
+import { CustomPagination } from '@/components/users/CustomPagination';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 interface UsersDashboardProps {
   searchParams: {
@@ -22,14 +25,74 @@ interface UsersDashboardProps {
 }
 
 export default function UsersDashboard({ searchParams }: UsersDashboardProps) {
+  const router = useRouter();
+  const urlSearchParams = useSearchParams();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
-  const { data: usersData, isLoading, error } = useUsers({
-    page: parseInt(searchParams.page || '1'),
+  const currentPage = parseInt(searchParams.page || '1');
+  const pageSize = 10;
+  
+  const { 
+    data: usersData, 
+    isLoading, 
+    error, 
+    refetch,
+    isRefetching 
+  } = useUsers({
+    page: currentPage,
+    pageSize,
     search: searchParams.search || '',
     status: searchParams.status || '',
     sort: searchParams.sort || 'createdAt_desc'
-  });
+  }) as {
+    data: {
+      users: any[];
+      totalCount: number;
+      totalPages: number;
+      page: number;
+      pageSize: number;
+    } | undefined;
+    isLoading: boolean;
+    error: Error | null;
+    refetch: () => void;
+    isRefetching: boolean;
+  };
+
+  const updateUserStatus = useUpdateUserStatus();
+  const deleteUser = useDeleteUser();
+
+  const handleStatusUpdate = async (userId: string, status: string) => {
+    try {
+      await updateUserStatus.mutateAsync({ id: userId, status });
+      toast.success(`User status updated to ${status}`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update user status');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      await deleteUser.mutateAsync(userId);
+      toast.success('User deleted successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete user');
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    const params = new URLSearchParams(urlSearchParams.toString());
+    params.set('page', page.toString());
+    router.push(`/dashboard/users?${params.toString()}`);
+  };
+
+  const handleExport = () => {
+    // TODO: Implement export functionality
+    toast.info('Export functionality coming soon');
+  };
+
+  const handleRefresh = () => {
+    refetch();
+  };
 
   return (
     <div className="space-y-6">
@@ -41,7 +104,16 @@ export default function UsersDashboard({ searchParams }: UsersDashboardProps) {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={isRefetching}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
@@ -55,23 +127,17 @@ export default function UsersDashboard({ searchParams }: UsersDashboardProps) {
       </div>
 
       {/* User Metrics */}
-      <Card>
-        <CardHeader>
-          <CardTitle>User Metrics</CardTitle>
-          <CardDescription>
-            Overview of user statistics and trends
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">User Metrics</h3>
-            <p className="text-muted-foreground">
-              User metrics will be displayed here.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <UserMetrics />
+
+      {/* Error Alert */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Failed to load users: {error.message}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -80,6 +146,11 @@ export default function UsersDashboard({ searchParams }: UsersDashboardProps) {
               <CardTitle>User Management</CardTitle>
               <CardDescription>
                 View and manage all users in the system
+                {usersData && (
+                  <span className="ml-2 text-sm">
+                    ({usersData.totalCount} total users)
+                  </span>
+                )}
               </CardDescription>
             </div>
             <Button
@@ -94,34 +165,33 @@ export default function UsersDashboard({ searchParams }: UsersDashboardProps) {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* User Search */}
-          <div className="flex gap-4 items-center">
-            <div className="flex-1">
-              <input 
-                placeholder="Search users..." 
-                className="w-full p-2 border rounded-lg"
-              />
-            </div>
-            <Button variant="outline" onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}>
-              <Filter className="h-4 w-4 mr-2" />
-              Filters
-            </Button>
-          </div>
+          <UserSearch />
           
-          {/* User Filters */}
+          {/* Advanced Filters */}
           {showAdvancedFilters && (
-            <div className="p-4 border rounded-lg bg-muted/50">
-              <p className="text-sm text-muted-foreground">Advanced filters will be displayed here.</p>
-            </div>
+            <UserFilters />
           )}
           
           {/* Users Table */}
-          <div className="text-center py-8">
-            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">Users Table</h3>
-            <p className="text-muted-foreground">
-              Users table will be displayed here.
-            </p>
-          </div>
+          <UsersTable 
+            data={usersData?.users || []}
+            isLoading={isLoading}
+            totalCount={usersData?.totalCount || 0}
+            onStatusUpdate={handleStatusUpdate}
+            onDelete={handleDeleteUser}
+          />
+          
+          {/* Pagination */}
+          {usersData && usersData.totalPages > 1 && (
+            <div className="flex justify-center">
+              <CustomPagination
+                currentPage={currentPage}
+                totalPages={usersData.totalPages}
+                onPageChange={handlePageChange}
+                showPreviousNext
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

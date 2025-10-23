@@ -10,7 +10,8 @@ import {
   BulkNotificationDto,
   SendEmailDto,
   CreateTemplateDto,
-  UpdateTemplateDto
+  UpdateTemplateDto,
+  SendEmailResponse
 } from '@/types/notifications';
 
 class NotificationsService {
@@ -70,13 +71,16 @@ class NotificationsService {
   }
 
   // Email management
-  async sendEmail(data: SendEmailDto): Promise<EmailLog> {
+  async sendEmail(data: SendEmailDto): Promise<SendEmailResponse> {
     const response = await fetch(`${this.baseUrl}/email/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to send email');
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to send email: ${error}`);
+    }
     return response.json();
   }
 
@@ -125,7 +129,10 @@ class NotificationsService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to create template');
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to create template: ${error}`);
+    }
     return response.json();
   }
 
@@ -156,6 +163,14 @@ class NotificationsService {
       body: JSON.stringify({ name: newName }),
     });
     if (!response.ok) throw new Error('Failed to duplicate template');
+    return response.json();
+  }
+
+  async deleteTemplate(id: string): Promise<{ message: string }> {
+    const response = await fetch(`${this.baseUrl}/templates/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete template');
     return response.json();
   }
 }

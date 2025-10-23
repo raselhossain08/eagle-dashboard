@@ -1,18 +1,43 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { ContractsDashboardShell } from '@/components/contracts/contracts-dashboard-shell'
 import { SignaturesTable } from '@/components/contracts/signatures-table'
-import { useSignatureAnalytics } from '@/hooks/use-signatures'
+import { 
+  useSignatureAnalytics, 
+  useSignatures, 
+  useSignatureTypesDistribution,
+  useValidateEvidence,
+  useExportEvidence,
+  useExportSignatures
+} from '@/hooks/use-signatures'
 import { useContractsStore } from '@/store/contracts-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Download, Filter, BarChart3 } from 'lucide-react'
+import { Download, Filter, BarChart3, TrendingUp, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function SignaturesOverviewPage() {
   const { dateRange } = useContractsStore()
-  const { data: analytics, isLoading } = useSignatureAnalytics(dateRange)
+  const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
+
+  // Fetch data using real hooks
+  const { data: analytics, isLoading: analyticsLoading, error: analyticsError } = useSignatureAnalytics(dateRange)
+  const { data: signaturesData, isLoading: signaturesLoading, error: signaturesError } = useSignatures({
+    page: currentPage,
+    limit: pageSize,
+    search: search || undefined,
+  })
+  const { data: typesDistribution, isLoading: typesLoading } = useSignatureTypesDistribution(dateRange)
+
+  // Mutations for actions
+  const validateEvidence = useValidateEvidence()
+  const exportEvidence = useExportEvidence()
+  const exportSignatures = useExportSignatures()
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -20,15 +45,50 @@ export default function SignaturesOverviewPage() {
     { label: 'Signatures' }
   ]
 
+  const handleValidate = async (signatureId: string) => {
+    try {
+      // We need the evidence package ID, so this might need to be handled differently
+      // For now, we'll just log it
+      console.log('Validate signature:', signatureId)
+    } catch (error) {
+      console.error('Validation failed:', error)
+    }
+  }
+
+  const handleExport = async (signatureId: string) => {
+    try {
+      // Similar to validate, we need the evidence package ID
+      console.log('Export signature:', signatureId)
+    } catch (error) {
+      console.error('Export failed:', error)
+    }
+  }
+
+  const handleExportAll = async () => {
+    try {
+      await exportSignatures.mutateAsync({ 
+        format: 'csv', 
+        dateRange 
+      })
+    } catch (error) {
+      console.error('Export failed:', error)
+    }
+  }
+
   const actions = (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="sm">
         <Filter className="h-4 w-4 mr-2" />
         Filters
       </Button>
-      <Button variant="outline" size="sm">
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={handleExportAll}
+        disabled={exportSignatures.isPending}
+      >
         <Download className="h-4 w-4 mr-2" />
-        Export
+        {exportSignatures.isPending ? 'Exporting...' : 'Export'}
       </Button>
     </div>
   )
@@ -40,6 +100,19 @@ export default function SignaturesOverviewPage() {
       breadcrumbs={breadcrumbs}
       actions={actions}
     >
+      {/* Error States */}
+      {(analyticsError || signaturesError) && (
+        <Alert className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {analyticsError ? 
+              `Failed to load analytics: ${analyticsError.message}` :
+              `Failed to load signatures: ${signaturesError?.message}`
+            }
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Signature Analytics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -48,7 +121,11 @@ export default function SignaturesOverviewPage() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics?.totalSignatures || 0}</div>
+            {analyticsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-bold">{analytics?.totalSignatures || 0}</div>
+            )}
             <p className="text-xs text-muted-foreground">
               All time signatures
             </p>
@@ -58,12 +135,16 @@ export default function SignaturesOverviewPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">This Month</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics?.monthlySignatures || 0}</div>
+            {analyticsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-bold">{analytics?.monthlySignatures || 0}</div>
+            )}
             <p className="text-xs text-muted-foreground">
-              +12% from last month
+              Current month
             </p>
           </CardContent>
         </Card>
@@ -74,7 +155,11 @@ export default function SignaturesOverviewPage() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics?.signatureRate || 0}%</div>
+            {analyticsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-bold">{analytics?.signatureRate || 0}%</div>
+            )}
             <p className="text-xs text-muted-foreground">
               Success rate
             </p>
@@ -87,7 +172,11 @@ export default function SignaturesOverviewPage() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics?.averageSigningTime || 0}h</div>
+            {analyticsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-bold">{analytics?.averageSigningTime || 0}h</div>
+            )}
             <p className="text-xs text-muted-foreground">
               From sent to signed
             </p>
@@ -104,20 +193,30 @@ export default function SignaturesOverviewPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">Drawn</Badge>
-              <span className="text-sm text-muted-foreground">45%</span>
+          {typesLoading ? (
+            <div className="flex gap-4">
+              <Skeleton className="h-6 w-20" />
+              <Skeleton className="h-6 w-20" />
+              <Skeleton className="h-6 w-20" />
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">Typed</Badge>
-              <span className="text-sm text-muted-foreground">35%</span>
+          ) : typesDistribution && typesDistribution.length > 0 ? (
+            <div className="flex gap-4">
+              {typesDistribution.map((type) => (
+                <div key={type.type} className="flex items-center gap-2">
+                  <Badge variant="outline" className="capitalize">
+                    {type.type === 'drawn' ? 'Hand Drawn' : 
+                     type.type === 'typed' ? 'Typed' : 
+                     'Uploaded'}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {type.percentage}% ({type.count})
+                  </span>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">Uploaded</Badge>
-              <span className="text-sm text-muted-foreground">20%</span>
-            </div>
-          </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No signature data available</p>
+          )}
         </CardContent>
       </Card>
 
@@ -131,12 +230,55 @@ export default function SignaturesOverviewPage() {
         </CardHeader>
         <CardContent>
           <SignaturesTable
-            data={[]} // Will be populated from API
-            onViewEvidence={(signatureId) => console.log('View evidence:', signatureId)}
-            onValidate={(signatureId) => console.log('Validate:', signatureId)}
-            onExport={(signatureId) => console.log('Export:', signatureId)}
-            isLoading={isLoading}
+            data={signaturesData?.data || []}
+            onValidate={handleValidate}
+            onExport={handleExport}
+            isLoading={signaturesLoading}
+            search={search}
+            onSearchChange={setSearch}
           />
+          
+          {/* Pagination */}
+          {signaturesData?.meta && signaturesData.meta.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, signaturesData.meta.total)} of {signaturesData.meta.total} signatures
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, signaturesData.meta.totalPages) }, (_, i) => {
+                    const pageNum = i + 1;
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage >= signaturesData.meta.totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </ContractsDashboardShell>

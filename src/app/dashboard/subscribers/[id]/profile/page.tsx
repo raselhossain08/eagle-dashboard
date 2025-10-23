@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
 import { 
   ArrowLeft, 
   Save, 
@@ -22,19 +23,24 @@ import {
   Bell
 } from 'lucide-react';
 import Link from 'next/link';
-import { useSubscriber, useUpdateSubscriber } from '@/hooks/useSubscribers';
-import { useState } from 'react';
+import { 
+  useSubscriberProfile, 
+  useUpdateSubscriberProfile, 
+  useUpdateKycStatus 
+} from '@/hooks/useSubscriberProfile';
+import { useState, useEffect } from 'react';
 
 export default function ProfileManagementPage() {
   const params = useParams();
   const id = params.id as string;
-  const { data: subscriber, isLoading } = useSubscriber(id);
-  const updateSubscriber = useUpdateSubscriber();
+  
+  const { data: profile, isLoading } = useSubscriberProfile(id);
+  const updateProfile = useUpdateSubscriberProfile();
+  const updateKyc = useUpdateKycStatus();
 
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    email: '',
     phone: '',
     company: '',
     address: {
@@ -51,7 +57,31 @@ export default function ProfileManagementPage() {
     }
   });
 
-  if (isLoading && !subscriber) {
+  // Update form data when profile loads
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        firstName: profile.firstName || '',
+        lastName: profile.lastName || '',
+        phone: profile.phone || '',
+        company: profile.company || '',
+        address: profile.address || {
+          street: '',
+          city: '',
+          state: '',
+          country: '',
+          zipCode: ''
+        },
+        preferences: profile.preferences || {
+          emailNotifications: true,
+          smsNotifications: false,
+          language: 'en'
+        }
+      });
+    }
+  }, [profile]);
+
+  if (isLoading && !profile) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -86,12 +116,27 @@ export default function ProfileManagementPage() {
 
   const handleSave = async () => {
     try {
-      await updateSubscriber.mutateAsync({
-        id,
+      await updateProfile.mutateAsync({
+        subscriberId: id,
         data: formData
       });
+      toast.success("Profile information has been successfully updated.");
     } catch (error) {
       console.error('Failed to update profile:', error);
+      toast.error("Failed to update profile. Please try again.");
+    }
+  };
+
+  const handleKycUpdate = async (status: 'verified' | 'rejected' | 'pending') => {
+    try {
+      await updateKyc.mutateAsync({
+        subscriberId: id,
+        data: { status }
+      });
+      toast.success(`KYC status has been updated to ${status}.`);
+    } catch (error) {
+      console.error('Failed to update KYC status:', error);
+      toast.error("Failed to update KYC status. Please try again.");
     }
   };
 
@@ -103,6 +148,16 @@ export default function ProfileManagementPage() {
       not_started: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
     };
     return variants[kycStatus as keyof typeof variants] || variants.not_started;
+  };
+
+  const getKycStatusText = (status: string) => {
+    const labels = {
+      verified: 'Verified',
+      pending: 'Pending Review',
+      rejected: 'Rejected',
+      not_started: 'Not Started'
+    };
+    return labels[status as keyof typeof labels] || 'Not Started';
   };
 
   return (
@@ -118,13 +173,16 @@ export default function ProfileManagementPage() {
           <div>
             <h1 className="text-3xl font-bold">Profile Management</h1>
             <p className="text-muted-foreground">
-              Manage {subscriber?.firstName} {subscriber?.lastName}'s profile information
+              Manage {profile?.firstName} {profile?.lastName}'s profile information
             </p>
           </div>
         </div>
-        <Button onClick={handleSave} disabled={updateSubscriber.isPending}>
+        <Button 
+          onClick={handleSave} 
+          disabled={updateProfile.isPending}
+        >
           <Save className="h-4 w-4 mr-2" />
-          Save Changes
+          {updateProfile.isPending ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
 
@@ -159,7 +217,7 @@ export default function ProfileManagementPage() {
                     <Label htmlFor="firstName">First Name</Label>
                     <Input
                       id="firstName"
-                      defaultValue={subscriber?.firstName}
+                      value={formData.firstName}
                       onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
                     />
                   </div>
@@ -167,7 +225,7 @@ export default function ProfileManagementPage() {
                     <Label htmlFor="lastName">Last Name</Label>
                     <Input
                       id="lastName"
-                      defaultValue={subscriber?.lastName}
+                      value={formData.lastName}
                       onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
                     />
                   </div>
@@ -177,16 +235,20 @@ export default function ProfileManagementPage() {
                   <Input
                     id="email"
                     type="email"
-                    defaultValue={subscriber?.email}
-                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    value={profile?.email || ''}
+                    disabled
+                    className="opacity-60"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Email cannot be changed
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
                   <Input
                     id="phone"
                     type="tel"
-                    defaultValue={subscriber?.phone}
+                    value={formData.phone}
                     onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                   />
                 </div>
@@ -194,7 +256,7 @@ export default function ProfileManagementPage() {
                   <Label htmlFor="company">Company</Label>
                   <Input
                     id="company"
-                    defaultValue={subscriber?.company}
+                    value={formData.company}
                     onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
                   />
                 </div>
@@ -213,7 +275,7 @@ export default function ProfileManagementPage() {
                   <Label htmlFor="street">Street Address</Label>
                   <Input
                     id="street"
-                    defaultValue={subscriber?.address?.street}
+                    value={formData.address.street}
                     onChange={(e) => setFormData(prev => ({ 
                       ...prev, 
                       address: { ...prev.address, street: e.target.value }
@@ -225,7 +287,7 @@ export default function ProfileManagementPage() {
                     <Label htmlFor="city">City</Label>
                     <Input
                       id="city"
-                      defaultValue={subscriber?.address?.city}
+                      value={formData.address.city}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
                         address: { ...prev.address, city: e.target.value }
@@ -236,7 +298,7 @@ export default function ProfileManagementPage() {
                     <Label htmlFor="state">State</Label>
                     <Input
                       id="state"
-                      defaultValue={subscriber?.address?.state}
+                      value={formData.address.state}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
                         address: { ...prev.address, state: e.target.value }
@@ -249,7 +311,7 @@ export default function ProfileManagementPage() {
                     <Label htmlFor="country">Country</Label>
                     <Input
                       id="country"
-                      defaultValue={subscriber?.address?.country}
+                      value={formData.address.country}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
                         address: { ...prev.address, country: e.target.value }
@@ -260,7 +322,7 @@ export default function ProfileManagementPage() {
                     <Label htmlFor="zipCode">ZIP Code</Label>
                     <Input
                       id="zipCode"
-                      defaultValue={subscriber?.address?.zipCode}
+                      value={formData.address.zipCode}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
                         address: { ...prev.address, zipCode: e.target.value }
@@ -289,24 +351,54 @@ export default function ProfileManagementPage() {
                     Current KYC verification status
                   </p>
                 </div>
-                <Badge className={getKycBadge(subscriber?.kycStatus || 'not_started')}>
-                  {subscriber?.kycStatus?.toUpperCase() || 'NOT STARTED'}
+                <Badge className={getKycBadge(profile?.kycStatus || 'not_started')}>
+                  {getKycStatusText(profile?.kycStatus || 'not_started')}
                 </Badge>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <Button variant="outline">
-                  Request Verification
+              <div className="grid gap-4 md:grid-cols-3">
+                <Button 
+                  variant="outline"
+                  onClick={() => handleKycUpdate('pending')}
+                  disabled={updateKyc.isPending}
+                >
+                  Mark as Pending
                 </Button>
-                <Button variant="outline">
-                  Upload Documents
+                <Button 
+                  variant="outline"
+                  onClick={() => handleKycUpdate('verified')}
+                  disabled={updateKyc.isPending}
+                >
+                  Mark as Verified
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => handleKycUpdate('rejected')}
+                  disabled={updateKyc.isPending}
+                >
+                  Mark as Rejected
                 </Button>
               </div>
 
               <div className="space-y-4">
-                <h3 className="font-semibold">Verification History</h3>
-                <div className="text-center text-muted-foreground py-8 border rounded-lg">
-                  No verification history available
+                <h3 className="font-semibold">Account Information</h3>
+                <div className="grid gap-4 text-sm">
+                  <div className="flex justify-between p-3 bg-muted rounded-lg">
+                    <span>Member Since</span>
+                    <span>{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between p-3 bg-muted rounded-lg">
+                    <span>Last Activity</span>
+                    <span>{profile?.lastActivity ? new Date(profile.lastActivity).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between p-3 bg-muted rounded-lg">
+                    <span>Total Spent</span>
+                    <span>${profile?.totalSpent?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div className="flex justify-between p-3 bg-muted rounded-lg">
+                    <span>Active Subscriptions</span>
+                    <span>{profile?.activeSubscriptions || 0}</span>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -331,7 +423,13 @@ export default function ProfileManagementPage() {
                 </div>
                 <Switch
                   id="email-notifications"
-                  defaultChecked={subscriber?.preferences?.emailNotifications}
+                  checked={formData.preferences.emailNotifications}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({
+                      ...prev,
+                      preferences: { ...prev.preferences, emailNotifications: checked }
+                    }))
+                  }
                 />
               </div>
 
@@ -344,7 +442,13 @@ export default function ProfileManagementPage() {
                 </div>
                 <Switch
                   id="sms-notifications"
-                  defaultChecked={subscriber?.preferences?.smsNotifications}
+                  checked={formData.preferences.smsNotifications}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({
+                      ...prev,
+                      preferences: { ...prev.preferences, smsNotifications: checked }
+                    }))
+                  }
                 />
               </div>
 
@@ -353,7 +457,13 @@ export default function ProfileManagementPage() {
                 <select
                   id="language"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  defaultValue={subscriber?.preferences?.language || 'en'}
+                  value={formData.preferences.language}
+                  onChange={(e) => 
+                    setFormData(prev => ({
+                      ...prev,
+                      preferences: { ...prev.preferences, language: e.target.value }
+                    }))
+                  }
                 >
                   <option value="en">English</option>
                   <option value="es">Spanish</option>

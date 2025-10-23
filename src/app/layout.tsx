@@ -8,6 +8,7 @@ import { HealthCheck } from '@/components/health-check'
 import { validateEnvironment } from '@/lib/env'
 import { initSentry } from '@/lib/sentry'
 import { ThemeProvider } from '@/providers/theme-provider'
+import { Toaster } from 'sonner'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -107,6 +108,7 @@ export default function RootLayout({
                   <HealthCheck />
                 </div>
                 {children}
+                <Toaster richColors position="top-right" />
               </div>
         </ThemeProvider>
 

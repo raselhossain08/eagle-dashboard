@@ -5,31 +5,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, User, Mail, Phone, Calendar, MessageSquare, Shield, Download } from 'lucide-react';
+import { ArrowLeft, Plus, User, Mail, Phone, Calendar, MessageSquare, Shield, Download, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { CustomerProfile } from '@/components/CustomerProfile';
 import { SupportNotesTable } from '@/components/SupportNotesTable';
 import { SupportTimeline } from '@/components/SupportTimeline';
 import { useSupportNotes, useSupportStats } from '@/hooks/useSupport';
-
-const mockCustomer = {
-  id: '1',
-  name: 'John Doe',
-  email: 'john@example.com',
-  phone: '+1 (555) 123-4567',
-  company: 'Acme Inc',
-  supportTier: 'premium' as const,
-  lastContact: '2024-01-15T10:30:00Z',
-  ticketCount: 5,
-  satisfactionScore: 4.5,
-  joinDate: '2023-01-15T00:00:00Z'
-};
+import { useCustomer, useCustomerSupportSummary } from '@/hooks/useCustomers';
+import { useSupportStore } from '@/stores/support-store';
 
 export default function CustomerDetailPage() {
   const params = useParams();
   const customerId = params.customerId as string;
-  const { data: notesData, isLoading } = useSupportNotes(customerId);
+  
+  const { data: customer, isLoading: customerLoading, error } = useCustomer(customerId);
+  const { data: notesData, isLoading: notesLoading } = useSupportNotes(customerId);
+  const { data: supportSummary, isLoading: summaryLoading } = useCustomerSupportSummary(customerId);
   const { data: stats } = useSupportStats();
+  const setIsCreatingNote = useSupportStore((state) => state.setIsCreatingNote);
 
   const handleStartImpersonation = (customerId: string) => {
     console.log('Start impersonation for:', customerId);
@@ -37,9 +30,123 @@ export default function CustomerDetailPage() {
   };
 
   const handleAddNote = (customerId: string) => {
-    console.log('Add note for:', customerId);
-    // Implement add note logic
+    setIsCreatingNote(true);
   };
+
+  const isLoading = customerLoading || summaryLoading;
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Link href="/dashboard/support/customers">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Customers
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Customer Profile</h1>
+              <p className="text-muted-foreground">
+                Failed to load customer information
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-destructive mb-4">Customer not found or failed to load</p>
+            <Link href="/dashboard/support/customers">
+              <Button>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Customers
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Link href="/dashboard/support/customers">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Customers
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Customer Profile</h1>
+              <p className="text-muted-foreground">
+                Loading customer information...
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            Loading...
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Card key={index} className="animate-pulse">
+              <CardHeader>
+                <div className="h-5 w-32 bg-muted rounded" />
+                <div className="h-4 w-48 bg-muted rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-4 w-full bg-muted rounded" />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Link href="/dashboard/support/customers">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Customers
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Customer Profile</h1>
+              <p className="text-muted-foreground">
+                Customer not found
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-muted-foreground mb-4">Customer not found</p>
+            <Link href="/dashboard/support/customers">
+              <Button>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Customers
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const customerNotes = notesData?.notes || [];
 
@@ -78,8 +185,9 @@ export default function CustomerDetailPage() {
 
         <TabsContent value="overview" className="space-y-6">
           <CustomerProfile
-            customer={mockCustomer}
+            customer={customer}
             supportNotes={customerNotes}
+            supportSummary={supportSummary}
             onStartImpersonation={handleStartImpersonation}
             onAddNote={handleAddNote}
           />
@@ -90,11 +198,11 @@ export default function CustomerDetailPage() {
             <CardHeader>
               <CardTitle>Support Notes</CardTitle>
               <CardDescription>
-                All support interactions and notes for {mockCustomer.name}
+                All support interactions and notes for {customer.name}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SupportNotesTable notes={customerNotes} isLoading={isLoading} />
+              <SupportNotesTable notes={customerNotes} isLoading={notesLoading} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -118,23 +226,27 @@ export default function CustomerDetailPage() {
                     <User className="w-6 h-6" />
                   </div>
                   <div>
-                    <div className="font-semibold text-lg">{mockCustomer.name}</div>
-                    <div className="text-sm text-muted-foreground">{mockCustomer.company}</div>
+                    <div className="font-semibold text-lg">{customer.name}</div>
+                    {customer.company && (
+                      <div className="text-sm text-muted-foreground">{customer.company}</div>
+                    )}
                   </div>
                 </div>
                 
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2">
                     <Mail className="w-4 h-4 text-muted-foreground" />
-                    <span>{mockCustomer.email}</span>
+                    <span>{customer.email}</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Phone className="w-4 h-4 text-muted-foreground" />
-                    <span>{mockCustomer.phone}</span>
-                  </div>
+                  {customer.phone && (
+                    <div className="flex items-center space-x-2">
+                      <Phone className="w-4 h-4 text-muted-foreground" />
+                      <span>{customer.phone}</span>
+                    </div>
+                  )}
                   <div className="flex items-center space-x-2">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span>Customer since {new Date(mockCustomer.joinDate).toLocaleDateString()}</span>
+                    <span>Customer since {new Date(customer.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
               </CardContent>
@@ -153,7 +265,7 @@ export default function CustomerDetailPage() {
                     <h4 className="font-semibold">Support Tier</h4>
                     <p className="text-sm text-muted-foreground">Current support level</p>
                   </div>
-                  <Badge variant="secondary">{mockCustomer.supportTier}</Badge>
+                  <Badge variant="secondary">{customer.supportTier}</Badge>
                 </div>
                 
                 <div className="flex items-center justify-between p-3 border rounded-lg">

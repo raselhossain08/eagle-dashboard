@@ -1,53 +1,70 @@
 // app/dashboard/users/segments/page.tsx
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Plus, Users, Filter, ArrowRight, Search } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Plus, Users, Filter, ArrowRight, Search, AlertCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
-
-const segments = [
-  {
-    id: 'active-premium',
-    name: 'Active Premium Users',
-    description: 'Users with active premium subscriptions and recent activity',
-    userCount: 842,
-    criteria: 'status:active AND subscription:tier_premium AND lastLogin:>7d',
-    color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-    createdAt: '2024-01-15',
-  },
-  {
-    id: 'inactive-30d',
-    name: 'Inactive Over 30 Days',
-    description: 'Users who haven\'t logged in for 30+ days but have active accounts',
-    userCount: 156,
-    criteria: 'lastLogin:<30d AND status:active',
-    color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-    createdAt: '2024-01-10',
-  },
-  {
-    id: 'kyc-verified',
-    name: 'KYC Verified',
-    description: 'Users with completed KYC verification process',
-    userCount: 1923,
-    criteria: 'kycStatus:verified',
-    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-    createdAt: '2024-01-05',
-  },
-  {
-    id: 'trial-expiring',
-    name: 'Trial Expiring Soon',
-    description: 'Users with trials expiring in the next 7 days',
-    userCount: 47,
-    criteria: 'subscription:trial AND trialEnds:<=7d',
-    color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
-    createdAt: '2024-01-20',
-  },
-];
+import { useSegments, useDeleteSegment } from '@/hooks/useSegments';
+import { toast } from 'sonner';
 
 export default function SegmentsPage() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const { 
+    data: segments = [], 
+    isLoading, 
+    error, 
+    refetch,
+    isRefetching 
+  } = useSegments();
+  const deleteSegment = useDeleteSegment();
+
+  const handleDeleteSegment = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this segment?')) {
+      try {
+        await deleteSegment.mutateAsync(id);
+        toast.success('Segment deleted successfully');
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to delete segment');
+      }
+    }
+  };
+
+  const handleRefresh = () => {
+    refetch();
+  };
+
+  // Filter segments based on search query
+  const filteredSegments = segments.filter(segment =>
+    segment.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    segment.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    segment.criteria.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">User Segments</h1>
+            <p className="text-muted-foreground">
+              Create and manage user segments for targeted actions and analysis
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Loading segments...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -57,24 +74,50 @@ export default function SegmentsPage() {
             Create and manage user segments for targeted actions and analysis
           </p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/users/segments/new">
-            <Plus className="h-4 w-4 mr-2" />
-            New Segment
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={isRefetching}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button asChild>
+            <Link href="/dashboard/users/segments/new">
+              <Plus className="h-4 w-4 mr-2" />
+              New Segment
+            </Link>
+          </Button>
+        </div>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Failed to load segments: {error.message}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="flex items-center gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search segments..." className="pl-8" />
+          <Input 
+            placeholder="Search segments..." 
+            className="pl-8" 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
         <Button variant="outline">Filter</Button>
       </div>
 
       <div className="grid gap-6">
-        {segments.map((segment) => (
+        {filteredSegments.map((segment) => (
           <Card key={segment.id} className="hover:shadow-md transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
@@ -98,33 +141,50 @@ export default function SegmentsPage() {
                     </div>
                   </div>
                 </div>
-                <Button variant="outline" asChild>
-                  <Link href={`/dashboard/users/segments/${segment.id}`}>
-                    View Segment
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleDeleteSegment(segment.id)}
+                    disabled={deleteSegment.isPending}
+                  >
+                    Delete
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href={`/dashboard/users/segments/${segment.id}`}>
+                      View Segment
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Link>
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {segments.length === 0 && (
+      {filteredSegments.length === 0 && !isLoading && (
         <Card>
           <CardContent className="p-12">
             <div className="text-center">
               <Users className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-xl font-medium mb-2">No Segments Created</h3>
+              <h3 className="text-xl font-medium mb-2">
+                {searchQuery ? 'No Segments Found' : 'No Segments Created'}
+              </h3>
               <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                Create your first user segment to group users based on specific criteria and perform bulk actions.
+                {searchQuery 
+                  ? 'No segments match your search criteria. Try adjusting your search terms.'
+                  : 'Create your first user segment to group users based on specific criteria and perform bulk actions.'
+                }
               </p>
-              <Button asChild>
-                <Link href="/dashboard/users/segments/new">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Your First Segment
-                </Link>
-              </Button>
+              {!searchQuery && (
+                <Button asChild>
+                  <Link href="/dashboard/users/segments/new">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Your First Segment
+                  </Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

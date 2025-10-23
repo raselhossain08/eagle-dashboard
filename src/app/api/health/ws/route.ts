@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server';
 import { WebSocketServer } from 'ws';
 import { NextResponse } from 'next/server';
 
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
+const API_PREFIX = process.env.API_PREFIX || '/api/v1';
+
 export async function GET(req: NextRequest) {
   if (!global.wss) {
     const wss = new WebSocketServer({ noServer: true });
@@ -14,12 +17,8 @@ export async function GET(req: NextRequest) {
       console.log('Client connected to health WebSocket');
       global.clients.add(ws);
 
-      // Send initial health data
-      const initialData = {
-        type: 'health_update',
-        payload: generateMockHealthData()
-      };
-      ws.send(JSON.stringify(initialData));
+      // Send initial health data from backend
+      fetchAndSendHealthData(ws);
 
       ws.on('message', (message) => {
         try {
@@ -41,91 +40,107 @@ export async function GET(req: NextRequest) {
       });
     });
 
-    // Simulate real-time updates every 10 seconds
-    setInterval(() => {
-      const healthData = {
-        type: 'health_update',
-        payload: generateMockHealthData()
-      };
-      
-      const metricsUpdate = {
-        type: 'metrics_update',
-        payload: generateMockMetricsUpdate()
-      };
-
-      // Broadcast to all connected clients
-      global.clients.forEach((client) => {
-        if (client.readyState === 1) { // WebSocket.OPEN
-          client.send(JSON.stringify(healthData));
-          client.send(JSON.stringify(metricsUpdate));
-        }
-      });
-    }, 10000);
+    // Real-time updates every 15 seconds (fetch from backend)
+    setInterval(async () => {
+      await broadcastHealthUpdates();
+    }, 15000);
   }
 
   return NextResponse.json({ status: 'WebSocket server running' });
 }
 
-function generateMockHealthData() {
-  const services = [
-    { name: 'database', status: 'up', responseTime: Math.random() * 50 + 20 },
-    { name: 'redis', status: 'up', responseTime: Math.random() * 10 + 5 },
-    { name: 'memory', status: 'up', responseTime: undefined },
-    { name: 'disk', status: 'up', responseTime: undefined }
-  ];
+async function fetchAndSendHealthData(ws?: any) {
+  try {
+    // Fetch health data from backend
+    const healthResponse = await fetch(`${BACKEND_URL}${API_PREFIX}/health`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
 
-  // Randomly degrade a service occasionally
-  if (Math.random() > 0.8) {
-    const randomService = Math.floor(Math.random() * services.length);
-    services[randomService].status = 'degraded';
+    const alertsResponse = await fetch(`${BACKEND_URL}${API_PREFIX}/health/alerts`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (healthResponse.ok) {
+      const healthData = await healthResponse.json();
+      const healthMessage = {
+        type: 'health_update',
+        payload: healthData
+      };
+
+      if (ws) {
+        // Send to specific client
+        ws.send(JSON.stringify(healthMessage));
+      } else {
+        // Broadcast to all clients
+        global.clients?.forEach((client) => {
+          if (client.readyState === 1) {
+            client.send(JSON.stringify(healthMessage));
+          }
+        });
+      }
+    }
+
+    if (alertsResponse.ok) {
+      const alertsData = await alertsResponse.json();
+      if (alertsData && alertsData.length > 0) {
+        alertsData.forEach((alert: any) => {
+          const alertMessage = {
+            type: 'alert',
+            payload: alert
+          };
+
+          if (ws) {
+            ws.send(JSON.stringify(alertMessage));
+          } else {
+            global.clients?.forEach((client) => {
+              if (client.readyState === 1) {
+                client.send(JSON.stringify(alertMessage));
+              }
+            });
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch health data from backend:', error);
+    
+    // Send fallback data
+    const fallbackData = {
+      type: 'health_update',
+      payload: {
+        overall: 'critical',
+        services: [
+          { name: 'backend', status: 'down', details: { error: 'Backend unavailable' } }
+        ],
+        systemMetrics: {
+          memory: { heap: 0, rss: 0, total: 0, used: 0 },
+          disk: { total: 0, used: 0, free: 0, usagePercentage: 0 },
+          cpu: { usage: 0, cores: 1 },
+          timestamp: new Date().toISOString()
+        },
+        lastCheck: new Date().toISOString(),
+        healthScore: 0
+      }
+    };
+
+    if (ws) {
+      ws.send(JSON.stringify(fallbackData));
+    } else {
+      global.clients?.forEach((client) => {
+        if (client.readyState === 1) {
+          client.send(JSON.stringify(fallbackData));
+        }
+      });
+    }
   }
-
-  const healthScore = calculateHealthScore(services);
-  
-  return {
-    overall: healthScore >= 90 ? 'healthy' : healthScore >= 70 ? 'warning' : 'critical',
-    services,
-    systemMetrics: generateMockMetricsUpdate(),
-    lastCheck: new Date().toISOString(),
-    healthScore
-  };
 }
 
-function generateMockMetricsUpdate() {
-  return {
-    memory: {
-      heap: Math.random() * 1000000000 + 500000000,
-      rss: Math.random() * 2000000000 + 1000000000,
-      total: 4000000000,
-      used: Math.random() * 3000000000 + 1000000000,
-      usagePercentage: Math.random() * 30 + 60
-    },
-    disk: {
-      total: 500000000000,
-      used: Math.random() * 300000000000 + 150000000000,
-      free: 500000000000 - (Math.random() * 300000000000 + 150000000000),
-      usagePercentage: Math.random() * 20 + 70
-    },
-    cpu: {
-      usage: Math.random() * 30 + 20,
-      cores: 8
-    },
-    timestamp: new Date().toISOString()
-  };
-}
-
-function calculateHealthScore(services: any[]): number {
-  const weights = { database: 0.3, redis: 0.2, memory: 0.25, disk: 0.25 };
-  let totalScore = 0;
-
-  services.forEach(service => {
-    const weight = weights[service.name as keyof typeof weights] || 0.1;
-    const serviceScore = service.status === 'up' ? 100 : 
-                        service.status === 'degraded' ? 50 : 0;
-    totalScore += serviceScore * weight;
-  });
-
-  return Math.round(totalScore);
+async function broadcastHealthUpdates() {
+  if (global.clients && global.clients.size > 0) {
+    await fetchAndSendHealthData();
+  }
 }
 
 // Add to global type definitions

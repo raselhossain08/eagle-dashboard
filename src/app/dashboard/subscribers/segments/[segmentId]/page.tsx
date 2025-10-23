@@ -16,46 +16,87 @@ import {
   Calendar
 } from 'lucide-react';
 import Link from 'next/link';
-
-const segmentData = {
-  id: 'seg_1',
-  name: 'Premium Users',
-  description: 'Users with active premium subscriptions',
-  criteria: 'subscription_plan = "premium" AND status = "active"',
-  subscriberCount: 1247,
-  createdAt: '2024-01-15',
-  color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-  metrics: {
-    averageLtv: 1850,
-    averageSpend: 89,
-    retentionRate: 92,
-    churnRate: 1.2
-  }
-};
-
-const segmentSubscribers = [
-  {
-    id: 'sub_1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    subscription: 'Premium',
-    ltv: 2450,
-    joined: '2023-06-15'
-  },
-  {
-    id: 'sub_2',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    subscription: 'Premium',
-    ltv: 1890,
-    joined: '2023-08-22'
-  },
-  // ... more mock data
-];
+import { useSegment, useSegmentSubscribers, useDeleteSegment } from '@/hooks/useSubscribers';
+import { useRouter } from 'next/navigation';
 
 export default function SegmentDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const segmentId = params.segmentId as string;
+  const deleteSegment = useDeleteSegment();
+
+  const { data: segment, isLoading: segmentLoading, error: segmentError } = useSegment(segmentId);
+  const { data: segmentSubscribers, isLoading: subscribersLoading, error: subscribersError } = useSegmentSubscribers(segmentId);
+
+  const handleDeleteSegment = async () => {
+    if (confirm('Are you sure you want to delete this segment? This action cannot be undone.')) {
+      try {
+        await deleteSegment.mutateAsync(segmentId);
+        router.push('/dashboard/subscribers/segments');
+      } catch (error) {
+        console.error('Error deleting segment:', error);
+      }
+    }
+  };
+
+  if (segmentError || subscribersError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-600 dark:text-red-400">Failed to load segment data</p>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (segmentLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 bg-muted animate-pulse rounded" />
+            <div className="space-y-2">
+              <div className="h-8 w-64 bg-muted animate-pulse rounded" />
+              <div className="h-4 w-48 bg-muted animate-pulse rounded" />
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="space-y-0 pb-2">
+                <div className="h-4 bg-muted animate-pulse rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 bg-muted animate-pulse rounded mb-2" />
+                <div className="h-3 bg-muted animate-pulse rounded w-2/3" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!segment) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-muted-foreground">Segment not found</p>
+          <Button asChild className="mt-4">
+            <Link href="/dashboard/subscribers/segments">
+              Back to Segments
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const subscriberCount = segmentSubscribers?.length || 0;
 
   return (
     <div className="space-y-6">
@@ -69,13 +110,16 @@ export default function SegmentDetailPage() {
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <Badge className={segmentData.color}>
-                {segmentData.subscriberCount.toLocaleString()} Subscribers
+              <Badge className={segment.isActive
+                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+              }>
+                {subscriberCount.toLocaleString()} Subscribers
               </Badge>
-              <h1 className="text-3xl font-bold">{segmentData.name}</h1>
+              <h1 className="text-3xl font-bold">{segment.name}</h1>
             </div>
             <p className="text-muted-foreground">
-              {segmentData.description}
+              {segment.description || 'No description provided'}
             </p>
           </div>
         </div>
@@ -111,9 +155,9 @@ export default function SegmentDetailPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{segmentData.subscriberCount.toLocaleString()}</div>
+                <div className="text-2xl font-bold">{subscriberCount.toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground">
-                  +12% from last month
+                  Active in this segment
                 </p>
               </CardContent>
             </Card>
@@ -124,35 +168,45 @@ export default function SegmentDetailPage() {
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${segmentData.metrics.averageLtv.toLocaleString()}</div>
+                <div className="text-2xl font-bold">
+                  ${segmentSubscribers ? 
+                    Math.round(segmentSubscribers.reduce((sum: number, sub: any) => sum + (sub.lifetimeValue || 0), 0) / subscriberCount).toLocaleString() :
+                    '0'
+                  }
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  +5% from average
+                  Average for this segment
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Retention Rate</CardTitle>
+                <CardTitle className="text-sm font-medium">Active Status</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{segmentData.metrics.retentionRate}%</div>
+                <div className="text-2xl font-bold">
+                  {segmentSubscribers ? 
+                    Math.round((segmentSubscribers.filter((sub: any) => sub.status === 'active').length / subscriberCount) * 100) :
+                    0
+                  }%
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  +8% from average
+                  Active subscribers
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Churn Rate</CardTitle>
+                <CardTitle className="text-sm font-medium">Segment Status</CardTitle>
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{segmentData.metrics.churnRate}%</div>
+                <div className="text-2xl font-bold">{segment.isActive ? 'Active' : 'Inactive'}</div>
                 <p className="text-xs text-muted-foreground">
-                  -2% from average
+                  Segment is {segment.isActive ? 'running' : 'paused'}
                 </p>
               </CardContent>
             </Card>
@@ -167,14 +221,28 @@ export default function SegmentDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="bg-muted p-4 rounded-lg">
-                <code className="text-sm font-mono">
-                  {segmentData.criteria}
-                </code>
+                <div className="text-sm font-mono">
+                  <div className="font-semibold mb-2">Operator: {segment.criteria?.operator || 'N/A'}</div>
+                  {segment.criteria?.conditions?.map((condition: any, index: number) => (
+                    <div key={index} className="ml-4 mb-1">
+                      {condition.field} {condition.operator} {JSON.stringify(condition.value)}
+                    </div>
+                  )) || <div className="text-muted-foreground">No conditions defined</div>}
+                </div>
               </div>
               <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4" />
-                Created on {new Date(segmentData.createdAt).toLocaleDateString()}
+                Created on {new Date(segment.createdAt).toLocaleDateString()}
               </div>
+              {segment.tags && segment.tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {segment.tags.map((tag: string, index: number) => (
+                    <Badge key={index} variant="secondary" className="text-xs">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -184,36 +252,63 @@ export default function SegmentDetailPage() {
             <CardHeader>
               <CardTitle>Segment Subscribers</CardTitle>
               <CardDescription>
-                {segmentData.subscriberCount.toLocaleString()} subscribers match this segment criteria
+                {subscriberCount.toLocaleString()} subscribers match this segment criteria
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {segmentSubscribers.map((subscriber) => (
-                  <div key={subscriber.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                        <span className="text-sm font-medium">
-                          {subscriber.name.split(' ').map(n => n[0]).join('')}
-                        </span>
+              {subscribersLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
+                        <div className="space-y-1">
+                          <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+                          <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-medium">{subscriber.name}</div>
-                        <div className="text-sm text-muted-foreground">{subscriber.email}</div>
+                      <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              ) : segmentSubscribers && segmentSubscribers.length > 0 ? (
+                <div className="space-y-4">
+                  {segmentSubscribers.map((subscriber: any) => (
+                    <div key={subscriber._id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                          <span className="text-sm font-medium">
+                            {subscriber.firstName?.[0]}{subscriber.lastName?.[0]}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-medium">{subscriber.firstName} {subscriber.lastName}</div>
+                          <div className="text-sm text-muted-foreground">{subscriber.email}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="font-medium">${subscriber.lifetimeValue?.toLocaleString() || '0'}</div>
+                          <div className="text-sm text-muted-foreground">LTV</div>
+                        </div>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/dashboard/subscribers/${subscriber._id}`}>
+                            View Profile
+                          </Link>
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="font-medium">${subscriber.ltv.toLocaleString()}</div>
-                        <div className="text-sm text-muted-foreground">LTV</div>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        View Profile
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No subscribers found</h3>
+                  <p className="text-muted-foreground">
+                    This segment doesn't match any current subscribers.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -227,8 +322,41 @@ export default function SegmentDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-96 bg-muted rounded flex items-center justify-center">
-                <p className="text-muted-foreground">Segment Analytics Charts</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <h4 className="font-semibold">Subscriber Status Distribution</h4>
+                  {segmentSubscribers && (
+                    <div className="space-y-1">
+                      {['active', 'inactive', 'pending'].map(status => {
+                        const count = segmentSubscribers.filter((sub: any) => sub.status === status).length;
+                        const percentage = subscriberCount > 0 ? Math.round((count / subscriberCount) * 100) : 0;
+                        return (
+                          <div key={status} className="flex justify-between text-sm">
+                            <span className="capitalize">{status}</span>
+                            <span>{count} ({percentage}%)</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-semibold">KYC Status Distribution</h4>
+                  {segmentSubscribers && (
+                    <div className="space-y-1">
+                      {['verified', 'pending', 'rejected', 'not_started'].map(status => {
+                        const count = segmentSubscribers.filter((sub: any) => sub.kycStatus === status).length;
+                        const percentage = subscriberCount > 0 ? Math.round((count / subscriberCount) * 100) : 0;
+                        return (
+                          <div key={status} className="flex justify-between text-sm">
+                            <span className="capitalize">{status.replace('_', ' ')}</span>
+                            <span>{count} ({percentage}%)</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -249,8 +377,12 @@ export default function SegmentDetailPage() {
                   <p className="text-sm text-muted-foreground mb-4">
                     Once you delete a segment, there is no going back. Please be certain.
                   </p>
-                  <Button variant="destructive">
-                    Delete Segment
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleDeleteSegment}
+                    disabled={deleteSegment.isPending}
+                  >
+                    {deleteSegment.isPending ? 'Deleting...' : 'Delete Segment'}
                   </Button>
                 </div>
               </div>

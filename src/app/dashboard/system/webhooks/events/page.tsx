@@ -8,59 +8,55 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Filter, Play, Eye } from 'lucide-react';
-
-const mockEvents = [
-  {
-    id: '1',
-    endpointId: '1',
-    event: 'order.created',
-    payload: { orderId: '12345', amount: 99.99 },
-    status: 'success' as const,
-    attempts: 1,
-    createdAt: '2024-01-15T14:30:00Z',
-    lastAttempt: '2024-01-15T14:30:02Z'
-  },
-  {
-    id: '2',
-    endpointId: '2', 
-    event: 'system.alert',
-    payload: { alert: 'high_cpu', level: 'warning' },
-    status: 'pending' as const,
-    attempts: 0,
-    createdAt: '2024-01-15T14:25:00Z'
-  },
-  {
-    id: '3',
-    endpointId: '1',
-    event: 'user.updated',
-    payload: { userId: 'user-123', action: 'profile_update' },
-    status: 'failed' as const,
-    attempts: 3,
-    createdAt: '2024-01-15T14:20:00Z',
-    lastAttempt: '2024-01-15T14:22:00Z'
-  }
-];
+import { Search, Filter, Play, Eye, RefreshCw, RotateCcw } from 'lucide-react';
+import { useWebhookEvents, useRetryWebhookEvent } from '@/hooks/useWebhooks';
+import { toast } from 'sonner';
 
 export default function WebhookEventsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const limit = 10;
 
-  const filteredEvents = mockEvents.filter(event => {
-    const matchesStatus = statusFilter === 'all' || event.status === statusFilter;
-    const matchesSearch = event.event.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         event.id.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+  const { data: eventsData, isLoading, refetch } = useWebhookEvents({
+    page,
+    limit,
+    status: statusFilter === 'all' ? undefined : statusFilter,
+    event: searchTerm || undefined,
   });
+
+  const retryEventMutation = useRetryWebhookEvent();
+
+  const handleRetryEvent = async (eventId: string) => {
+    try {
+      await retryEventMutation.mutateAsync(eventId);
+      toast.success('Event queued for retry');
+      refetch();
+    } catch (error) {
+      toast.error('Failed to retry event');
+    }
+  };
 
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case 'success': return 'default';
+      case 'delivered': return 'default';
       case 'pending': return 'secondary';
       case 'failed': return 'destructive';
+      case 'retrying': return 'secondary';
       default: return 'outline';
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-64 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -71,10 +67,12 @@ export default function WebhookEventsPage() {
             Monitor and manage webhook event deliveries
           </p>
         </div>
-        <Button>
-          <Play className="h-4 w-4 mr-2" />
-          Trigger Event
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -102,9 +100,10 @@ export default function WebhookEventsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="success">Success</SelectItem>
+                <SelectItem value="delivered">Delivered</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="retrying">Retrying</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -122,33 +121,75 @@ export default function WebhookEventsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEvents.map((event) => (
+              {eventsData?.events.map((event) => (
                 <TableRow key={event.id}>
-                  <TableCell className="font-mono text-sm">{event.id}</TableCell>
+                  <TableCell className="font-mono text-sm">{event.id.slice(-8)}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{event.event}</Badge>
                   </TableCell>
                   <TableCell className="font-mono text-sm">
-                    Endpoint {event.endpointId}
+                    {event.endpointId?.name || `Endpoint ${event.endpointId?.id || 'Unknown'}`}
                   </TableCell>
                   <TableCell>
                     <Badge variant={getStatusVariant(event.status)}>
                       {event.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{event.attempts}</TableCell>
+                  <TableCell>{event.attemptCount}</TableCell>
                   <TableCell className="text-sm">
                     {new Date(event.createdAt).toLocaleString()}
                   </TableCell>
                   <TableCell>
-                    <Button variant="outline" size="sm">
-                      <Eye className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {(event.status === 'failed' || event.status === 'retrying') && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleRetryEvent(event.id)}
+                          disabled={retryEventMutation.isPending}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {eventsData && eventsData.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6">
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                Showing {(page - 1) * limit + 1} to {Math.min(page * limit, eventsData.total)} of {eventsData.total} events
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {page} of {eventsData.totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(eventsData.totalPages, p + 1))}
+                  disabled={page === eventsData.totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -5,21 +5,38 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Mail, Edit, Copy, MoreVertical } from 'lucide-react';
+import { Search, Plus, Mail, Edit, Copy, MoreVertical, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useTemplates } from '@/hooks/useNotifications';
+import { useTemplates, useDeleteTemplate, useDuplicateTemplate } from '@/hooks/useNotifications';
 import { Template } from '@/types/notifications';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 
 export default function TemplatesPage() {
   const [search, setSearch] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<Template | null>(null);
+  
   const { data: templates, isLoading } = useTemplates({ search });
+  const deleteTemplate = useDeleteTemplate();
+  const duplicateTemplate = useDuplicateTemplate();
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -27,6 +44,37 @@ export default function TemplatesPage() {
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const handleDelete = async () => {
+    if (!templateToDelete) return;
+
+    try {
+      await deleteTemplate.mutateAsync(templateToDelete.id);
+      toast.success('Template deleted successfully');
+      setDeleteDialogOpen(false);
+      setTemplateToDelete(null);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete template');
+    }
+  };
+
+  const handleDuplicate = async (template: Template) => {
+    try {
+      const newName = `${template.name} (Copy)`;
+      await duplicateTemplate.mutateAsync({ 
+        id: template.id, 
+        newName 
+      });
+      toast.success('Template duplicated successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to duplicate template');
+    }
+  };
+
+  const openDeleteDialog = (template: Template) => {
+    setTemplateToDelete(template);
+    setDeleteDialogOpen(true);
   };
 
   return (
@@ -115,9 +163,21 @@ export default function TemplatesPage() {
                               Preview
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleDuplicate(template)}
+                            disabled={duplicateTemplate.isPending}
+                          >
                             <Copy className="h-4 w-4 mr-2" />
                             Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => openDeleteDialog(template)}
+                            className="text-destructive"
+                            disabled={(template.usageCount || 0) > 0}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -169,6 +229,32 @@ export default function TemplatesPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Template</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{templateToDelete?.name}"? This action cannot be undone.
+              {templateToDelete && templateToDelete.usageCount > 0 && (
+                <span className="block mt-2 text-destructive">
+                  This template has been used {templateToDelete.usageCount} times and cannot be deleted.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteTemplate.isPending || (templateToDelete?.usageCount || 0) > 0}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteTemplate.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

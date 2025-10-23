@@ -4,17 +4,55 @@ import { ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, Receipt, CreditCard, TrendingUp } from 'lucide-react';
+import { DollarSign, Receipt, CreditCard, TrendingUp, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
+
+interface Breadcrumb {
+  label: string;
+  href: string;
+  active?: boolean;
+}
 
 interface BillingDashboardShellProps {
   children: ReactNode;
   title?: string;
   description?: string;
+  breadcrumbs?: Breadcrumb[];
+  actions?: ReactNode;
 }
 
-export function BillingDashboardShell({ children, title = "Billing Dashboard", description }: BillingDashboardShellProps) {
+export function BillingDashboardShell({ 
+  children, 
+  title = "Billing Dashboard", 
+  description, 
+  breadcrumbs, 
+  actions 
+}: BillingDashboardShellProps) {
   return (
     <div className="space-y-6 w-full flex-1">
+      {/* Breadcrumbs */}
+      {breadcrumbs && breadcrumbs.length > 0 && (
+        <nav className="flex items-center space-x-1 text-sm text-muted-foreground">
+          {breadcrumbs.map((breadcrumb, index) => (
+            <div key={index} className="flex items-center">
+              {index > 0 && <ChevronRight className="h-4 w-4 mx-1" />}
+              {breadcrumb.active ? (
+                <span className="font-medium text-foreground">
+                  {breadcrumb.label}
+                </span>
+              ) : (
+                <Link
+                  href={breadcrumb.href}
+                  className="hover:text-foreground transition-colors"
+                >
+                  {breadcrumb.label}
+                </Link>
+              )}
+            </div>
+          ))}
+        </nav>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
@@ -23,10 +61,12 @@ export function BillingDashboardShell({ children, title = "Billing Dashboard", d
           )}
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline">
-            <Receipt className="h-4 w-4 mr-2" />
-            Export Invoices
-          </Button>
+          {actions || (
+            <Button variant="outline">
+              <Receipt className="h-4 w-4 mr-2" />
+              Export Invoices
+            </Button>
+          )}
         </div>
       </div>
 

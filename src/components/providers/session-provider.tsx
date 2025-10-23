@@ -3,7 +3,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@/types/auth'
 import { AuthService } from '@/lib/services/auth.service'
-import { TokenStorageService } from '@/lib/auth/token-storage.service'
 import { SessionStorageService } from '@/lib/auth/session-storage.service'
 
 interface SessionContextType {
@@ -30,17 +29,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const checkSession = async () => {
     try {
       const storedUser = SessionStorageService.getUserSession()
-      const token = TokenStorageService.getAccessToken()
 
-      if (storedUser && token) {
-        // Validate with backend
+      if (storedUser) {
+        // Validate with backend using cookie authentication
         const validatedUser = await authService.validateSession()
         setUser(validatedUser)
       }
     } catch (error) {
       console.error('Session check failed:', error)
       // Clear invalid session
-      TokenStorageService.clearTokens()
       SessionStorageService.clearUserSession()
     } finally {
       setLoading(false)
@@ -58,7 +55,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       throw new Error('2FA_REQUIRED')
     }
     
-    TokenStorageService.setTokens(response.accessToken, response.refreshToken)
+    // No need to store tokens in localStorage - they're in HTTP-only cookies
+    // Just store user session for quick access
     SessionStorageService.setUserSession(response.user)
     setUser(response.user)
   }
@@ -70,7 +68,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       console.error('Logout error:', error)
     } finally {
       setUser(null)
-      TokenStorageService.clearTokens()
       SessionStorageService.clearUserSession()
     }
   }
