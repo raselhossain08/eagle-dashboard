@@ -1,4 +1,5 @@
-import { Contract, Signature, User, ContractTemplate } from '@/lib/types/contracts'
+import { Contract, Signature, ContractTemplate } from '@/lib/types/contracts'
+import { User } from '@/types/users'
 
 export class PdfService {
   /**
@@ -86,7 +87,7 @@ BT
 50 750 Td
 (Contract: ${contract.title}) Tj
 0 -20 Td
-(Customer: ${customer.name}) Tj
+(Customer: ${customer.firstName} ${customer.lastName}) Tj
 0 -20 Td
 (Email: ${customer.email}) Tj
 0 -20 Td

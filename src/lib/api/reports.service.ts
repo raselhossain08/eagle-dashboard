@@ -72,6 +72,22 @@ export interface BrowserBreakdownData {
   avgDuration: number;
 }
 
+export interface CustomReportData {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  data: Array<{
+    metric: string;
+    value: number;
+    change: number;
+  }>;
+  insights: string[];
+  recommendations: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export class ReportsService {
   async getConversionFunnel(params: ConversionFunnelParams): Promise<ConversionFunnelData[]> {
     return apiClient.get('/analytics/reports/funnel', {
@@ -128,6 +144,14 @@ export class ReportsService {
       startDate: params.startDate.toISOString(),
       endDate: params.endDate.toISOString(),
     });
+  }
+
+  async getCustomReportById(reportId: string): Promise<CustomReportData> {
+    return apiClient.get(`/reports/custom/${reportId}`);
+  }
+
+  async exportCustomReport(reportId: string, format: 'csv' | 'excel' | 'pdf'): Promise<Blob> {
+    return apiClient.download(`/reports/export/${reportId}?format=${format}`);
   }
 }
 

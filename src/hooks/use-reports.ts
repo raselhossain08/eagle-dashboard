@@ -5,7 +5,10 @@ export const useConversionFunnel = (params: ConversionFunnelParams) => {
   return useQuery({
     queryKey: ['reports', 'conversion-funnel', params],
     queryFn: () => reportsService.getConversionFunnel(params),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    enabled: !!params.startDate && !!params.endDate,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 };
 
@@ -62,5 +65,16 @@ export const useProductRevenueBreakdown = (params: { startDate: Date; endDate: D
     queryKey: ['reports', 'product-revenue', params],
     queryFn: () => reportsService.getProductRevenueBreakdown(params),
     staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+};
+
+export const useCustomReport = (reportId: string) => {
+  return useQuery({
+    queryKey: ['reports', 'custom-detail', reportId],
+    queryFn: () => reportsService.getCustomReportById(reportId),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    enabled: !!reportId,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 };

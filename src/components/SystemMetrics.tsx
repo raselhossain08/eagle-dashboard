@@ -28,7 +28,7 @@ export function SystemMetrics({ metrics }: SystemMetricsProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <MemoryStick className="h-4 w-4 text-blue-500" />
+              <MemoryStick className="h-4 w-4 text-blue-500 dark:text-blue-400" />
               <span className="font-medium">Memory Usage</span>
             </div>
             <span className="text-sm text-muted-foreground">
@@ -46,7 +46,7 @@ export function SystemMetrics({ metrics }: SystemMetricsProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <HardDrive className="h-4 w-4 text-green-500" />
+              <HardDrive className="h-4 w-4 text-green-500 dark:text-green-400" />
               <span className="font-medium">Disk Usage</span>
             </div>
             <span className="text-sm text-muted-foreground">
@@ -64,7 +64,7 @@ export function SystemMetrics({ metrics }: SystemMetricsProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Cpu className="h-4 w-4 text-purple-500" />
+              <Cpu className="h-4 w-4 text-purple-500 dark:text-purple-400" />
               <span className="font-medium">CPU Usage</span>
             </div>
             <span className="text-sm text-muted-foreground">

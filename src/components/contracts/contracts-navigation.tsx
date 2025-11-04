@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { 
   FileText, 
   ScrollText, 
-  Template, 
+  FileText as Template, 
   PenTool, 
   BarChart3,
   Plus 

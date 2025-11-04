@@ -7,14 +7,34 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const queryString = searchParams.toString();
     
+    // Extract authorization from headers or cookies
+    let authHeader = request.headers.get('Authorization') || '';
+    
+    // If no Authorization header, try to get token from cookies
+    if (!authHeader) {
+      const cookies = request.headers.get('cookie') || '';
+      const tokenMatch = cookies.match(/(?:^|; )(?:accessToken|eagle_access_token|access_token|token)=([^;]*)/);
+      if (tokenMatch) {
+        authHeader = `Bearer ${tokenMatch[1]}`;
+      }
+    }
+
+    console.log('🔄 Dashboard API Route - Forwarding GET to backend:', `${API_BASE_URL}/notifications/templates`);
+    console.log('🔑 Dashboard API Route - Auth header:', authHeader ? 'Present' : 'Missing');
+    
     const response = await fetch(`${API_BASE_URL}/notifications/templates?${queryString}`, {
       headers: {
-        'Authorization': request.headers.get('Authorization') || '',
+        'Authorization': authHeader,
         'Content-Type': 'application/json',
+        'Cookie': request.headers.get('cookie') || '', // Forward cookies too
       },
     });
 
+    console.log('📤 Dashboard API Route - Backend GET response status:', response.status);
+
     if (!response.ok) {
+      const errorText = await response.text();
+      console.log('❌ Dashboard API Route - Backend GET error:', errorText);
       return NextResponse.json(
         { error: 'Failed to fetch templates' },
         { status: response.status }
@@ -36,17 +56,36 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
+    // Extract authorization from headers or cookies
+    let authHeader = request.headers.get('Authorization') || '';
+    
+    // If no Authorization header, try to get token from cookies
+    if (!authHeader) {
+      const cookies = request.headers.get('cookie') || '';
+      const tokenMatch = cookies.match(/(?:^|; )(?:accessToken|eagle_access_token|access_token|token)=([^;]*)/);
+      if (tokenMatch) {
+        authHeader = `Bearer ${tokenMatch[1]}`;
+      }
+    }
+
+    console.log('🔄 Dashboard API Route - Forwarding to backend:', `${API_BASE_URL}/notifications/templates`);
+    console.log('🔑 Dashboard API Route - Auth header:', authHeader ? 'Present' : 'Missing');
+    
     const response = await fetch(`${API_BASE_URL}/notifications/templates`, {
       method: 'POST',
       headers: {
-        'Authorization': request.headers.get('Authorization') || '',
+        'Authorization': authHeader,
         'Content-Type': 'application/json',
+        'Cookie': request.headers.get('cookie') || '', // Forward cookies too
       },
       body: JSON.stringify(body),
     });
 
+    console.log('📤 Dashboard API Route - Backend response status:', response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
+      console.log('❌ Dashboard API Route - Backend error:', errorText);
       return NextResponse.json(
         { error: errorText || 'Failed to create template' },
         { status: response.status }

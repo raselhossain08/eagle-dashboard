@@ -70,7 +70,7 @@ export const usersQuerySchema = z.object({
 export const bulkActionSchema = z.object({
   userIds: z.array(z.string()).min(1, 'At least one user must be selected'),
   action: z.enum(['activate', 'deactivate', 'suspend', 'delete', 'export']),
-  data: z.record(z.any()).optional(),
+  data: z.record(z.string(), z.any()).optional(),
 });
 
 // KYC document schema

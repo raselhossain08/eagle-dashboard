@@ -7,7 +7,7 @@ const subscriptionsService = new SubscriptionsService();
 
 export const useSubscriptions = (params: SubscriptionsQueryParams = {}) => {
   return useQuery({
-    queryKey: ['subscriptions', params],
+    queryKey: ['subscriptions', JSON.stringify(params)],
     queryFn: () => subscriptionsService.getSubscriptions(params),
     staleTime: 2 * 60 * 1000, // 2 minutes
     retry: (failureCount, error) => {

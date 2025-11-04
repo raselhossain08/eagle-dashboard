@@ -115,11 +115,12 @@ export function PlanPerformanceChart({ data, metric, isLoading }: PlanPerformanc
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={350}>
+        <div className="min-h-[350px]">
+          <ResponsiveContainer width="100%" height={350} minHeight={300}>
           <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="planName" fontSize={12} angle={-45} textAnchor="end" height={80} />
-            <YAxis fontSize={12} tickFormatter={config.formatter} />
+            <YAxis fontSize={12} tickFormatter={(value) => config.formatter(value)} />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
             <Bar 
@@ -130,6 +131,7 @@ export function PlanPerformanceChart({ data, metric, isLoading }: PlanPerformanc
             />
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );

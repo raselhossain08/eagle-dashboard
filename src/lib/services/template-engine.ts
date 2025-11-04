@@ -51,6 +51,7 @@ export class TemplateEngine {
 
     return {
       isValid: errors.length === 0,
+      message: errors.length === 0 ? 'Template is valid' : `Template validation failed with ${errors.length} errors`,
       errors,
       timestamp: new Date()
     }

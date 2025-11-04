@@ -39,13 +39,25 @@ export interface Campaign {
   discountIds: string[];
   channels: string[];
   targetAudience: string[];
+  targetSegments?: string[];
+  targetCountries?: string[];
   budget?: number;
+  budgetSpent?: number;
   revenueGoal?: number;
   conversionGoal?: number;
+  // UTM tracking fields
   utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  // Performance metrics
   totalRedemptions: number;
   totalRevenue: number;
   totalDiscountAmount: number;
+  performanceMetrics?: Record<string, any>;
+  metadata?: Record<string, any>;
+  isArchived?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -97,16 +109,22 @@ export interface CreateCampaignDto {
   name: string;
   description?: string;
   type: 'promotional' | 'affiliate' | 'referral' | 'loyalty' | 'winback';
-  startDate: Date;
-  endDate?: Date;
-  isActive: boolean;
-  discountIds: string[];
-  channels: string[];
-  targetAudience: string[];
+  startDate: string; // Send as ISO string to backend
+  endDate?: string;
+  isActive?: boolean; // Optional with default
+  discountIds?: string[]; // Optional, can be empty array
+  channels?: string[];
+  targetAudience?: string[];
+  targetCountries?: string[];
   budget?: number;
   revenueGoal?: number;
   conversionGoal?: number;
+  // UTM tracking fields to match backend exactly
   utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
 }
 
 export interface ValidateDiscountDto {
@@ -136,14 +154,20 @@ export interface PaginationState {
   pageIndex: number;
   pageSize: number;
   totalCount: number;
+  totalPages?: number;
 }
 
 export interface DiscountFilters {
   search?: string;
   isActive?: boolean;
   type?: string;
+  status?: string;
   campaignId?: string;
+  sortBy?: DiscountSortBy;
+  sortOrder?: 'asc' | 'desc';
 }
+
+export type DiscountSortBy = 'createdAt' | 'code' | 'timesRedeemed' | 'validUntil' | 'type';
 
 export interface CampaignFilters {
   search?: string;

@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Contract, User, ContractTemplate, Signature, EvidencePackage } from '@/lib/types/contracts'
+import { Contract, ContractTemplate, Signature, EvidencePackage } from '@/lib/types/contracts'
+import { User } from '@/types/users'
 import { 
   Calendar, 
   User as UserIcon, 
@@ -96,7 +97,7 @@ export function ContractDetailsPanel({
                 <div className="flex items-center gap-2">
                   <UserIcon className="h-4 w-4 text-muted-foreground" />
                   <span>
-                    <strong>Customer:</strong> {customer.name}
+                    <strong>Customer:</strong> {customer.firstName} {customer.lastName}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -188,7 +189,7 @@ export function ContractDetailsPanel({
                   <div>
                     <strong>Language:</strong>
                     <div className="text-muted-foreground">
-                      {contract.locale}
+                      N/A
                     </div>
                   </div>
                   <div>
@@ -227,7 +228,7 @@ export function ContractDetailsPanel({
                     <UserIcon className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <div className="font-medium">{customer.name}</div>
+                    <div className="font-medium">{customer.firstName} {customer.lastName}</div>
                     <div className="text-sm text-muted-foreground">{customer.email}</div>
                   </div>
                 </div>
@@ -319,7 +320,7 @@ export function ContractDetailsPanel({
                   evidencePackage={evidencePackage!}
                   onValidate={async () => {
                     // Handle validation logic
-                    return { isValid: true, errors: [], timestamp: new Date() }
+                    return { isValid: true, message: 'Validation successful', errors: [], timestamp: new Date() }
                   }}
                   onExport={async () => {
                     // Handle export logic

@@ -40,7 +40,7 @@ export function cleanQueryParams(params: AuditQueryParams): AuditQueryParams {
   
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
-      cleaned[key as keyof AuditQueryParams] = value;
+      (cleaned as any)[key] = value;
     }
   });
   

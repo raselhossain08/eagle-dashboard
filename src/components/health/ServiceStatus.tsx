@@ -4,7 +4,23 @@ import { CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react';
 import { ServiceStatus as ServiceStatusType } from '@/types/health';
 import { ServiceDiagnostics } from './ServiceDiagnostics';
 
-// ... existing imports and StatusIcon, StatusBadge components ...
+const StatusIcon = ({ status }: { status: string }) => {
+  switch (status) {
+    case 'healthy': return <CheckCircle className="h-4 w-4 text-green-500" />;
+    case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+    case 'critical': return <XCircle className="h-4 w-4 text-red-500" />;
+    default: return <Clock className="h-4 w-4 text-gray-500" />;
+  }
+};
+
+const StatusBadge = ({ status }: { status: string }) => {
+  const variant = status === 'healthy' ? 'default' : status === 'warning' ? 'outline' : 'destructive';
+  return <Badge variant={variant}>{status}</Badge>;
+};
+
+interface ServiceStatusProps {
+  services: ServiceStatusType[];
+}
 
 export function ServiceStatus({ services }: ServiceStatusProps) {
   return (

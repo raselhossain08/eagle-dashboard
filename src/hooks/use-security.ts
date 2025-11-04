@@ -1,6 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { securityService, SecurityAlert, SecuritySession, SecurityDashboard } from '@/lib/api/security';
+import { 
+  securityService, 
+  SecurityAlert, 
+  SecuritySession, 
+  SecurityDashboard,
+  SecurityHealth,
+  SecurityAlertFilters,
+  SecuritySessionFilters,
+  CreateSecurityAlertRequest,
+  ResolveSecurityAlertRequest,
+  DismissSecurityAlertRequest,
+  SecurityAnomalyDetectionResponse
+} from '@/lib/api/security';
 
 // Security Dashboard
 export function useSecurityDashboard(days: number = 30) {
@@ -8,6 +20,16 @@ export function useSecurityDashboard(days: number = 30) {
     queryKey: ['security', 'dashboard', days],
     queryFn: () => securityService.getDashboard(days),
     staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on authentication errors
+      if (error?.message?.includes('authentication') || error?.message?.includes('401')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    refetchOnWindowFocus: true,
+    refetchInterval: 1000 * 60 * 10, // Auto-refresh every 10 minutes
   });
 }
 
@@ -17,29 +39,32 @@ export function useSecurityHealth() {
     queryFn: () => securityService.getHealth(),
     staleTime: 1000 * 60 * 2, // 2 minutes
     refetchInterval: 1000 * 60 * 5, // Refresh every 5 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on authentication errors
+      if (error?.message?.includes('authentication') || error?.message?.includes('401')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    refetchOnWindowFocus: true,
   });
 }
 
 // Security Alerts
-export function useSecurityAlerts(params: {
-  page?: number;
-  limit?: number;
-  type?: string;
-  severity?: 'low' | 'medium' | 'high' | 'critical';
-  userId?: string;
-  adminUserId?: string;
-  resolved?: boolean;
-  dismissed?: boolean;
-  active?: boolean;
-  startDate?: string;
-  endDate?: string;
-  ipAddress?: string;
-  search?: string;
-} = {}) {
+export function useSecurityAlerts(params: SecurityAlertFilters = {}) {
   return useQuery({
     queryKey: ['security', 'alerts', params],
     queryFn: () => securityService.getAlerts(params),
     staleTime: 1000 * 60 * 2, // 2 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on authentication errors
+      if (error?.message?.includes('authentication') || error?.message?.includes('401')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 }
 
@@ -55,14 +80,17 @@ export function useCreateSecurityAlert() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: securityService.createAlert,
-    onSuccess: () => {
+    mutationFn: (alert: CreateSecurityAlertRequest) => securityService.createAlert(alert),
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['security', 'alerts'] });
       queryClient.invalidateQueries({ queryKey: ['security', 'dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['security', 'health'] });
       toast.success('Security alert created successfully');
+      return data;
     },
     onError: (error: Error) => {
-      toast.error('Failed to create security alert: ' + error.message);
+      console.error('Create security alert error:', error);
+      toast.error(error.message || 'Failed to create security alert');
     },
   });
 }
@@ -73,13 +101,16 @@ export function useResolveSecurityAlert() {
   return useMutation({
     mutationFn: ({ id, notes }: { id: string; notes: string }) =>
       securityService.resolveAlert(id, notes),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['security', 'alerts'] });
       queryClient.invalidateQueries({ queryKey: ['security', 'dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['security', 'health'] });
       toast.success('Security alert resolved successfully');
+      return data;
     },
     onError: (error: Error) => {
-      toast.error('Failed to resolve security alert: ' + error.message);
+      console.error('Resolve security alert error:', error);
+      toast.error(error.message || 'Failed to resolve security alert');
     },
   });
 }
@@ -89,13 +120,16 @@ export function useDismissSecurityAlert() {
 
   return useMutation({
     mutationFn: (id: string) => securityService.dismissAlert(id),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['security', 'alerts'] });
       queryClient.invalidateQueries({ queryKey: ['security', 'dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['security', 'health'] });
       toast.success('Security alert dismissed successfully');
+      return data;
     },
     onError: (error: Error) => {
-      toast.error('Failed to dismiss security alert: ' + error.message);
+      console.error('Dismiss security alert error:', error);
+      toast.error(error.message || 'Failed to dismiss security alert');
     },
   });
 }
@@ -117,21 +151,19 @@ export function useDeleteSecurityAlert() {
 }
 
 // Security Sessions
-export function useSecuritySessions(params: {
-  page?: number;
-  limit?: number;
-  userId?: string;
-  isActive?: boolean;
-  isSuspicious?: boolean;
-  isBlocked?: boolean;
-  ipAddress?: string;
-  startDate?: string;
-  endDate?: string;
-} = {}) {
+export function useSecuritySessions(params: SecuritySessionFilters = {}) {
   return useQuery({
     queryKey: ['security', 'sessions', params],
     queryFn: () => securityService.getSessions(params),
     staleTime: 1000 * 60 * 2, // 2 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on authentication errors
+      if (error?.message?.includes('authentication') || error?.message?.includes('401')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 }
 
@@ -141,13 +173,16 @@ export function useTerminateSecuritySession() {
   return useMutation({
     mutationFn: ({ sessionId, reason }: { sessionId: string; reason?: string }) =>
       securityService.terminateSession(sessionId, reason),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['security', 'sessions'] });
       queryClient.invalidateQueries({ queryKey: ['security', 'dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['security', 'health'] });
       toast.success('Security session terminated successfully');
+      return data;
     },
     onError: (error: Error) => {
-      toast.error('Failed to terminate security session: ' + error.message);
+      console.error('Terminate security session error:', error);
+      toast.error(error.message || 'Failed to terminate security session');
     },
   });
 }
@@ -158,13 +193,16 @@ export function useBlockSecuritySession() {
   return useMutation({
     mutationFn: ({ sessionId, reason }: { sessionId: string; reason?: string }) =>
       securityService.blockSession(sessionId, reason),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['security', 'sessions'] });
       queryClient.invalidateQueries({ queryKey: ['security', 'dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['security', 'health'] });
       toast.success('Security session blocked successfully');
+      return data;
     },
     onError: (error: Error) => {
-      toast.error('Failed to block security session: ' + error.message);
+      console.error('Block security session error:', error);
+      toast.error(error.message || 'Failed to block security session');
     },
   });
 }
@@ -193,14 +231,22 @@ export function useDetectAnomalies() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: securityService.detectAnomalies,
-    onSuccess: (data) => {
+    mutationFn: () => securityService.detectAnomalies(),
+    onSuccess: (data: SecurityAnomalyDetectionResponse) => {
       queryClient.invalidateQueries({ queryKey: ['security', 'alerts'] });
       queryClient.invalidateQueries({ queryKey: ['security', 'dashboard'] });
-      toast.success(`Anomaly detection completed. ${data.alertsCreated} alerts created.`);
+      queryClient.invalidateQueries({ queryKey: ['security', 'health'] });
+      
+      if (data.alertsCreated > 0) {
+        toast.success(`Anomaly detection completed. ${data.alertsCreated} new alerts created.`);
+      } else {
+        toast.info('Anomaly detection completed. No anomalies detected.');
+      }
+      return data;
     },
     onError: (error: Error) => {
-      toast.error('Failed to detect anomalies: ' + error.message);
+      console.error('Anomaly detection error:', error);
+      toast.error(error.message || 'Failed to detect anomalies');
     },
   });
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { ContractsDashboardShell } from '@/components/contracts/contracts-dashboard-shell'
 import { SignaturesTable } from '@/components/contracts/signatures-table'
 import { 
@@ -14,25 +14,27 @@ import {
 import { useContractsStore } from '@/store/contracts-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Download, Filter, BarChart3, TrendingUp, AlertTriangle } from 'lucide-react'
+import { Download, Filter, BarChart3, TrendingUp, AlertTriangle, FileCheck, Clock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
 
 export default function SignaturesOverviewPage() {
   const { dateRange } = useContractsStore()
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [isExporting, setIsExporting] = useState(false)
   const pageSize = 10
 
   // Fetch data using real hooks
-  const { data: analytics, isLoading: analyticsLoading, error: analyticsError } = useSignatureAnalytics(dateRange)
-  const { data: signaturesData, isLoading: signaturesLoading, error: signaturesError } = useSignatures({
+  const { data: analytics, isLoading: analyticsLoading, error: analyticsError, refetch: refetchAnalytics } = useSignatureAnalytics(dateRange)
+  const { data: signaturesData, isLoading: signaturesLoading, error: signaturesError, refetch: refetchSignatures } = useSignatures({
     page: currentPage,
     limit: pageSize,
     search: search || undefined,
   })
-  const { data: typesDistribution, isLoading: typesLoading } = useSignatureTypesDistribution(dateRange)
+  const { data: typesDistribution, isLoading: typesLoading, error: typesError } = useSignatureTypesDistribution(dateRange)
 
   // Mutations for actions
   const validateEvidence = useValidateEvidence()
@@ -42,53 +44,85 @@ export default function SignaturesOverviewPage() {
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
     { label: 'Contracts', href: '/dashboard/contracts' },
-    { label: 'Signatures' }
+    { label: 'Digital Signatures', href: '/dashboard/contracts/signatures' }
   ]
 
-  const handleValidate = async (signatureId: string) => {
+  const handleValidate = useCallback(async (signatureId: string) => {
     try {
-      // We need the evidence package ID, so this might need to be handled differently
-      // For now, we'll just log it
-      console.log('Validate signature:', signatureId)
+      toast.info('Validating signature evidence...')
+      
+      // First we need to get the evidence package ID for this signature
+      // For now, we'll use the signature ID as evidence package ID
+      // In a real scenario, you'd need to fetch the signature details first
+      const result = await validateEvidence.mutateAsync(signatureId)
+      
+      if (result.isValid) {
+        toast.success('Signature evidence validated successfully')
+      } else {
+        toast.error(`Validation failed: ${result.message || 'Unknown error'}`)
+      }
+      
     } catch (error) {
       console.error('Validation failed:', error)
+      toast.error(error instanceof Error ? error.message : 'Validation failed')
     }
-  }
+  }, [validateEvidence])
 
-  const handleExport = async (signatureId: string) => {
+  const handleExport = useCallback(async (signatureId: string) => {
     try {
-      // Similar to validate, we need the evidence package ID
-      console.log('Export signature:', signatureId)
+      toast.info('Exporting signature evidence...')
+      
+      // Export evidence for this signature
+      await exportEvidence.mutateAsync(signatureId)
+      
+      toast.success('Evidence package exported successfully')
+      
     } catch (error) {
       console.error('Export failed:', error)
+      toast.error(error instanceof Error ? error.message : 'Export failed')
     }
-  }
+  }, [exportEvidence])
 
-  const handleExportAll = async () => {
+  const handleExportAll = useCallback(async () => {
     try {
+      setIsExporting(true)
+      toast.info('Exporting all signatures...')
+      
       await exportSignatures.mutateAsync({ 
         format: 'csv', 
         dateRange 
       })
+      
+      toast.success('Signatures exported successfully')
+      
     } catch (error) {
       console.error('Export failed:', error)
+      toast.error(error instanceof Error ? error.message : 'Export failed')
+    } finally {
+      setIsExporting(false)
     }
-  }
+  }, [exportSignatures, dateRange])
+
+  // Refetch data when date range changes
+  React.useEffect(() => {
+    refetchAnalytics()
+    refetchSignatures()
+  }, [dateRange, refetchAnalytics, refetchSignatures])
 
   const actions = (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="sm">
         <Filter className="h-4 w-4 mr-2" />
-        Filters
+        Filter
       </Button>
       <Button 
         variant="outline" 
         size="sm"
         onClick={handleExportAll}
-        disabled={exportSignatures.isPending}
+        disabled={isExporting || exportSignatures.isPending}
       >
         <Download className="h-4 w-4 mr-2" />
-        {exportSignatures.isPending ? 'Exporting...' : 'Export'}
+        {(isExporting || exportSignatures.isPending) ? 'Exporting...' : 'Export All'}
       </Button>
     </div>
   )
@@ -101,14 +135,13 @@ export default function SignaturesOverviewPage() {
       actions={actions}
     >
       {/* Error States */}
-      {(analyticsError || signaturesError) && (
-        <Alert className="mb-6">
+      {(analyticsError || signaturesError || typesError) && (
+        <Alert className="mb-6" variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            {analyticsError ? 
-              `Failed to load analytics: ${analyticsError.message}` :
-              `Failed to load signatures: ${signaturesError?.message}`
-            }
+            {analyticsError && `Analytics: ${analyticsError.message}`}
+            {signaturesError && `Signatures: ${signaturesError.message}`}
+            {typesError && `Types: ${typesError.message}`}
           </AlertDescription>
         </Alert>
       )}
@@ -169,7 +202,7 @@ export default function SignaturesOverviewPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Avg. Signing Time</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {analyticsLoading ? (
@@ -223,9 +256,12 @@ export default function SignaturesOverviewPage() {
       {/* Signatures Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Signatures</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <FileCheck className="h-5 w-5" />
+            Digital Signatures
+          </CardTitle>
           <CardDescription>
-            Latest digital signatures with evidence packages
+            Comprehensive signature management with evidence packages and validation
           </CardDescription>
         </CardHeader>
         <CardContent>

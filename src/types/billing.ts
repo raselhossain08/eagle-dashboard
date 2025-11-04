@@ -121,8 +121,10 @@ export interface PaginationState {
 export interface PlansQueryParams {
   page?: number;
   pageSize?: number;
+  limit?: number; // Alternative to pageSize for compatibility
   search?: string;
   isActive?: boolean;
+  category?: string; // For filtering by plan category
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
@@ -210,6 +212,7 @@ export interface CreatePlanDto {
   isVisible: boolean;
   baseSeats: number;
   pricePerSeat: number;
+  metadata?: Record<string, any>;
 }
 
 export interface UpdatePlanDto extends Partial<CreatePlanDto> {}

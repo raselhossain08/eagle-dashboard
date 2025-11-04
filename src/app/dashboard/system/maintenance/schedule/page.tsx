@@ -12,7 +12,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Edit, Trash2, Play, Pause, Calendar, Clock } from 'lucide-react';
 
-const scheduledTasks = [
+type TaskType = 'backup' | 'cleanup' | 'report' | 'health';
+type TaskStatus = 'active' | 'paused';
+
+interface MaintenanceTask {
+  id: string;
+  name: string;
+  description: string;
+  schedule: string;
+  nextRun: string;
+  lastRun: string;
+  status: TaskStatus;
+  type: TaskType;
+}
+
+const scheduledTasks: MaintenanceTask[] = [
   {
     id: '1',
     name: 'Daily Backup',
@@ -20,8 +34,8 @@ const scheduledTasks = [
     schedule: '0 4 * * *', // 4:00 AM daily
     nextRun: '2024-01-16T04:00:00Z',
     lastRun: '2024-01-15T04:00:00Z',
-    status: 'active' as const,
-    type: 'backup' as const
+    status: 'active',
+    type: 'backup'
   },
   {
     id: '2',
@@ -30,8 +44,8 @@ const scheduledTasks = [
     schedule: '0 2 * * 0', // 2:00 AM every Sunday
     nextRun: '2024-01-21T02:00:00Z',
     lastRun: '2024-01-14T02:00:00Z',
-    status: 'active' as const,
-    type: 'cleanup' as const
+    status: 'active',
+    type: 'cleanup'
   },
   {
     id: '3',
@@ -40,8 +54,8 @@ const scheduledTasks = [
     schedule: '0 6 1 * *', // 6:00 AM on 1st of month
     nextRun: '2024-02-01T06:00:00Z',
     lastRun: '2024-01-01T06:00:00Z',
-    status: 'paused' as const,
-    type: 'report' as const
+    status: 'paused',
+    type: 'report'
   },
   {
     id: '4',
@@ -50,8 +64,8 @@ const scheduledTasks = [
     schedule: '*/30 * * * *', // Every 30 minutes
     nextRun: '2024-01-15T15:30:00Z',
     lastRun: '2024-01-15T15:00:00Z',
-    status: 'active' as const,
-    type: 'health' as const
+    status: 'active',
+    type: 'health'
   }
 ];
 

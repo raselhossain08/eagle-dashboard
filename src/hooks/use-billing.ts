@@ -15,19 +15,19 @@ export function useBillingOverview(initialDateRange?: DateRange) {
   const [dateRange, setDateRange] = useState<DateRange>(initialDateRange || getDefaultDateRange());
 
   const query = useQuery({
-    queryKey: ['billing', 'overview', dateRange],
+    queryKey: ['billing', 'overview', JSON.stringify(dateRange)],
     queryFn: () => billingService.getRevenueOverview(dateRange),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const mrrTrendsQuery = useQuery({
-    queryKey: ['billing', 'mrr-trends', dateRange],
+    queryKey: ['billing', 'mrr-trends', JSON.stringify(dateRange)],
     queryFn: () => billingService.getMrrTrends('monthly', dateRange),
     staleTime: 5 * 60 * 1000,
   });
 
   const revenueBreakdownQuery = useQuery({
-    queryKey: ['billing', 'revenue-breakdown', dateRange],
+    queryKey: ['billing', 'revenue-breakdown', JSON.stringify(dateRange)],
     queryFn: () => billingService.getRevenueBreakdown(dateRange),
     staleTime: 5 * 60 * 1000,
   });
@@ -47,7 +47,7 @@ export function useBillingOverview(initialDateRange?: DateRange) {
 
 export function useBillingMetrics(dateRange?: DateRange) {
   return useQuery({
-    queryKey: ['billing', 'metrics', dateRange],
+    queryKey: ['billing', 'metrics', dateRange ? JSON.stringify(dateRange) : 'default'],
     queryFn: () => billingService.getSubscriptionMetrics(dateRange),
     staleTime: 5 * 60 * 1000,
   });
@@ -55,7 +55,7 @@ export function useBillingMetrics(dateRange?: DateRange) {
 
 export function useChurnAnalysis(dateRange?: DateRange, options?: any) {
   return useQuery({
-    queryKey: ['billing', 'churn-analysis', dateRange],
+    queryKey: ['billing', 'churn-analysis', dateRange ? JSON.stringify(dateRange) : 'default'],
     queryFn: () => billingService.getChurnAnalysis(dateRange),
     staleTime: 5 * 60 * 1000,
     ...options,
@@ -73,7 +73,7 @@ export function usePlanPerformance(dateRange?: DateRange, options?: any) {
 
 export function useSubscriptionAnalytics(dateRange?: DateRange, options?: any) {
   return useQuery({
-    queryKey: ['billing', 'subscription-analytics', dateRange],
+    queryKey: ['billing', 'subscription-analytics', dateRange ? JSON.stringify(dateRange) : 'default'],
     queryFn: () => billingService.getSubscriptionAnalytics(dateRange),
     staleTime: 5 * 60 * 1000,
     ...options,
@@ -85,7 +85,7 @@ export function useRevenueReport(
   dateRange?: DateRange
 ) {
   return useQuery({
-    queryKey: ['billing', 'revenue-report', type, dateRange],
+    queryKey: ['billing', 'revenue-report', type, dateRange ? JSON.stringify(dateRange) : 'default'],
     queryFn: () => billingService.getRevenueReport(type, dateRange),
     staleTime: 5 * 60 * 1000,
   });

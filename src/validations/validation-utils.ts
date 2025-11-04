@@ -82,11 +82,11 @@ export const debouncedValidation = <T>(
         try {
           await schema.parseAsync(data);
           resolve({ valid: true });
-        } catch (error) {
+        } catch (error: unknown) {
           if (error instanceof z.ZodError) {
             resolve({
               valid: false,
-              errors: error.errors.map(err => err.message)
+              errors: error.issues.map(err => err.message)
             });
           } else {
             resolve({ valid: false, errors: ['Validation failed'] });

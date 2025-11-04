@@ -13,29 +13,91 @@ import { SupportTimeline } from '@/components/SupportTimeline';
 import { useSupportNotes, useSupportStats } from '@/hooks/useSupport';
 import { useCustomer, useCustomerSupportSummary } from '@/hooks/useCustomers';
 import { useSupportStore } from '@/stores/support-store';
+import { CreateNoteModal } from '@/components/CreateNoteModal';
+import { toast } from 'sonner';
 
 export default function CustomerDetailPage() {
   const params = useParams();
   const customerId = params.customerId as string;
   
-  const { data: customer, isLoading: customerLoading, error } = useCustomer(customerId);
-  const { data: notesData, isLoading: notesLoading } = useSupportNotes(customerId);
-  const { data: supportSummary, isLoading: summaryLoading } = useCustomerSupportSummary(customerId);
+  const { data: customer, isLoading: customerLoading, error, refetch: refetchCustomer } = useCustomer(customerId);
+  const { data: notesData, isLoading: notesLoading, error: notesError, refetch: refetchNotes } = useSupportNotes(customerId);
+  const { data: supportSummary, isLoading: summaryLoading, error: summaryError, refetch: refetchSummary } = useCustomerSupportSummary(customerId);
   const { data: stats } = useSupportStats();
-  const setIsCreatingNote = useSupportStore((state) => state.setIsCreatingNote);
+  const { isCreatingNote, setIsCreatingNote } = useSupportStore((state) => ({
+    isCreatingNote: state.isCreatingNote,
+    setIsCreatingNote: state.setIsCreatingNote,
+  }));
 
   const handleStartImpersonation = (customerId: string) => {
     console.log('Start impersonation for:', customerId);
-    // Implement impersonation logic
+    // TODO: Implement impersonation logic with real API call
   };
 
   const handleAddNote = (customerId: string) => {
     setIsCreatingNote(true);
   };
 
-  const isLoading = customerLoading || summaryLoading;
+  const handleRetry = () => {
+    refetchCustomer();
+    refetchNotes();
+    refetchSummary();
+  };
 
-  if (error) {
+  const handleExportCustomerData = async () => {
+    if (!customer || !notesData) return;
+
+    try {
+      const exportData = {
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
+          company: customer.company,
+          supportTier: customer.supportTier,
+          status: customer.status,
+          createdAt: customer.createdAt,
+          lastContact: customer.lastContact,
+        },
+        supportSummary,
+        notes: notesData.notes.map(note => ({
+          id: note.id,
+          content: note.content,
+          category: note.category,
+          isInternal: note.isInternal,
+          isResolved: note.isResolved,
+          requiresFollowUp: note.requiresFollowUp,
+          followUpDate: note.followUpDate,
+          createdAt: note.createdAt,
+          adminUser: note.adminUser?.name,
+        })),
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: 'application/json',
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `customer-${customer.id}-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('Customer data exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export customer data');
+    }
+  };
+
+  const isLoading = customerLoading || summaryLoading;
+  const hasError = error || notesError || summaryError;
+
+  if (hasError) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -54,17 +116,31 @@ export default function CustomerDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-destructive mb-4">Customer not found or failed to load</p>
-            <Link href="/dashboard/support/customers">
-              <Button>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Customers
-              </Button>
-            </Link>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+                <MessageSquare className="w-8 h-8 text-destructive" />
+              </div>
+              <h3 className="text-lg font-semibold">Failed to Load Customer Data</h3>
+              <p className="text-muted-foreground max-w-md">
+                {error?.message || notesError?.message || summaryError?.message || 'An unexpected error occurred while loading customer information.'}
+              </p>
+              <div className="flex items-center space-x-2 pt-4">
+                <Button onClick={handleRetry}>
+                  <Loader2 className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                  Retry
+                </Button>
+                <Link href="/dashboard/support/customers">
+                  <Button variant="outline">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Customers
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -168,7 +244,11 @@ export default function CustomerDetailPage() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline">
+          <Button 
+            variant="outline"
+            onClick={() => handleExportCustomerData()}
+            disabled={isLoading}
+          >
             <Download className="w-4 h-4 mr-2" />
             Export Data
           </Button>
@@ -208,7 +288,7 @@ export default function CustomerDetailPage() {
         </TabsContent>
 
         <TabsContent value="timeline">
-          <SupportTimeline notes={customerNotes} customerId={customerId} />
+          <SupportTimeline notes={customerNotes} customerId={customerId} isLoading={notesLoading} />
         </TabsContent>
 
         <TabsContent value="settings">
@@ -299,6 +379,17 @@ export default function CustomerDetailPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Create Note Modal */}
+      <CreateNoteModal
+        customerId={customerId}
+        isOpen={isCreatingNote}
+        onClose={() => setIsCreatingNote(false)}
+        onSuccess={() => {
+          refetchNotes();
+          refetchSummary();
+        }}
+      />
     </div>
   );
 }

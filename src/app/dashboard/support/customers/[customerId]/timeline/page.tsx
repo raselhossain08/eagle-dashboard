@@ -13,10 +13,17 @@ export default function CustomerTimelinePage() {
   const params = useParams();
   const customerId = params.customerId as string;
   
-  const { data: customer, isLoading: customerLoading, error } = useCustomer(customerId);
-  const { data: notesData, isLoading } = useSupportNotes(customerId);
+  const { data: customer, isLoading: customerLoading, error, refetch: refetchCustomer } = useCustomer(customerId);
+  const { data: notesData, isLoading, error: notesError, refetch: refetchNotes } = useSupportNotes(customerId);
 
-  if (error) {
+  const handleRetry = () => {
+    refetchCustomer();
+    refetchNotes();
+  };
+
+  const hasError = error || notesError;
+
+  if (hasError) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -35,17 +42,31 @@ export default function CustomerTimelinePage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-destructive mb-4">Customer not found or failed to load</p>
-            <Link href="/dashboard/support/customers">
-              <Button>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Customers
-              </Button>
-            </Link>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+                <Filter className="w-8 h-8 text-destructive" />
+              </div>
+              <h3 className="text-lg font-semibold">Failed to Load Timeline Data</h3>
+              <p className="text-muted-foreground max-w-md">
+                {error?.message || notesError?.message || 'An unexpected error occurred while loading timeline data.'}
+              </p>
+              <div className="flex items-center space-x-2 pt-4">
+                <Button onClick={handleRetry}>
+                  <Loader2 className={`w-4 h-4 mr-2 ${customerLoading || isLoading ? 'animate-spin' : ''}`} />
+                  Retry
+                </Button>
+                <Link href="/dashboard/support/customers">
+                  <Button variant="outline">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Customers
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -158,6 +179,7 @@ export default function CustomerTimelinePage() {
       <SupportTimeline 
         notes={notesData?.notes || []} 
         customerId={customerId}
+        isLoading={isLoading}
       />
     </div>
   );

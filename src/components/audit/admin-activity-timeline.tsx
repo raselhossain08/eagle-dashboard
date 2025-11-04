@@ -128,7 +128,7 @@ export function AdminActivityTimeline({ adminId, activities, isLoading }: AdminA
             activity.status === 'success' && "bg-green-100 group-hover:bg-green-200",
             activity.status === 'failure' && "bg-red-100 group-hover:bg-red-200",
             activity.status === 'error' && "bg-orange-100 group-hover:bg-orange-200",
-            (!activity.status || activity.status === 'pending') && "bg-gray-100 group-hover:bg-gray-200"
+            !activity.status && "bg-gray-100 group-hover:bg-gray-200"
           )}>
             {getStatusIcon(activity.status)}
           </div>

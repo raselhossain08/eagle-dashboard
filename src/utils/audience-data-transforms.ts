@@ -1,4 +1,4 @@
-import { GeographicData } from '@/lib/api/analytics.service';
+import { GeographicData } from '@/services/analytics.service';
 
 export interface TransformedUserTypeData {
   name: string;
@@ -11,14 +11,48 @@ export interface TransformedAgeData {
   value: number;
 }
 
-// Transform geographic data if needed
-export const transformGeographicData = (data: GeographicData[]): GeographicData[] => {
-  // Ensure data has required fields and sensible defaults
+// Region mapping for countries
+const countryToRegionMap: Record<string, string> = {
+  "United States": "North America",
+  "Canada": "North America", 
+  "Mexico": "North America",
+  "United Kingdom": "Europe",
+  "Germany": "Europe",
+  "France": "Europe",
+  "Italy": "Europe",
+  "Spain": "Europe",
+  "Netherlands": "Europe", 
+  "Switzerland": "Europe",
+  "Belgium": "Europe",
+  "Austria": "Europe",
+  "Sweden": "Europe",
+  "Norway": "Europe",
+  "Japan": "Asia",
+  "China": "Asia",
+  "India": "Asia",
+  "South Korea": "Asia",
+  "Singapore": "Asia",
+  "Thailand": "Asia",
+  "Russia": "Asia",
+  "Australia": "Oceania",
+  "New Zealand": "Oceania",
+  "Brazil": "South America",
+  "Argentina": "South America",
+  "Chile": "South America",
+  "South Africa": "Africa",
+  "Nigeria": "Africa",
+  "Egypt": "Africa"
+};
+
+// Transform geographic data if needed  
+export const transformGeographicData = (data: GeographicData[]): (GeographicData & { region: string })[] => {
+  // Ensure data has required fields and sensible defaults, add region mapping
   return data.map(item => ({
     country: item.country || 'Unknown',
-    region: item.region || 'Unknown',
+    region: countryToRegionMap[item.country] || 'Other',
     sessions: item.sessions || 0,
-    users: item.users || 0
+    users: item.users || 0,
+    bounceRate: item.bounceRate || 0
   }));
 };
 

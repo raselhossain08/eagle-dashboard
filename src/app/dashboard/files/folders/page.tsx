@@ -1,17 +1,18 @@
 // app/dashboard/files/folders/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FilesDashboardShell } from '@/components/files/files-dashboard-shell';
 import { FilesNavigation } from '@/components/files/files-navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Folder, Plus, MoreVertical, File, Search, AlertTriangle, Edit, Trash2, FolderOpen } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Folder, Plus, MoreVertical, File, Search, AlertTriangle, Edit, Trash2, FolderOpen, RefreshCw, HardDrive, Grid3X3 } from 'lucide-react';
 import { useFolders, useCreateFolder } from '@/hooks/use-files';
 import { FolderItem } from '@/lib/api/files.service';
 import { toast } from 'sonner';
@@ -21,6 +22,11 @@ export default function FoldersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [parentPath, setParentPath] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<FolderItem | null>(null);
+  const [newFolderNameForRename, setNewFolderNameForRename] = useState('');
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   // Fetch folders data using real API
   const { 
@@ -32,6 +38,17 @@ export default function FoldersPage() {
 
   // Create folder mutation
   const createFolder = useCreateFolder();
+
+  // Auto-refresh functionality
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(() => {
+        refetch();
+      }, 3 * 60 * 1000); // Refresh every 3 minutes
+
+      return () => clearInterval(interval);
+    }
+  }, [autoRefresh, refetch]);
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -77,32 +94,148 @@ export default function FoldersPage() {
 
   const handleEditFolder = (folder: FolderItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log('Edit folder:', folder.name);
-    // TODO: Implement folder renaming functionality
+    setSelectedFolder(folder);
+    setNewFolderNameForRename(folder.name);
+    setShowRenameDialog(true);
   };
 
   const handleDeleteFolder = (folder: FolderItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log('Delete folder:', folder.name);
-    // TODO: Implement folder deletion functionality
+    setSelectedFolder(folder);
+    setShowDeleteDialog(true);
+  };
+
+  const handleRenameFolder = async () => {
+    if (!selectedFolder || !newFolderNameForRename.trim()) {
+      toast.error('Folder name is required');
+      return;
+    }
+
+    if (newFolderNameForRename.trim() === selectedFolder.name) {
+      setShowRenameDialog(false);
+      return;
+    }
+
+    try {
+      // Direct API call for rename since hook doesn't exist
+      const token = document.cookie.split('; ').find(row => row.startsWith('accessToken='))?.split('=')[1];
+      
+      if (!token) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/files/folders/${selectedFolder.id}/rename`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ newName: newFolderNameForRename.trim() })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to rename folder');
+      }
+
+      toast.success('Folder renamed successfully');
+      setShowRenameDialog(false);
+      setSelectedFolder(null);
+      setNewFolderNameForRename('');
+      refetch();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to rename folder');
+      console.error('Rename failed:', error);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedFolder) return;
+
+    try {
+      // Direct API call for delete since hook doesn't exist
+      const token = document.cookie.split('; ').find(row => row.startsWith('accessToken='))?.split('=')[1];
+      
+      if (!token) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/files/folders/${selectedFolder.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to delete folder');
+      }
+
+      toast.success('Folder deleted successfully');
+      setShowDeleteDialog(false);
+      setSelectedFolder(null);
+      refetch();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete folder');
+      console.error('Delete failed:', error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      await refetch();
+      toast.success('Folders refreshed successfully');
+    } catch (error) {
+      toast.error('Failed to refresh folders');
+    }
   };
 
   const filteredFolders = folders; // Search is now handled by the API
 
+  // Calculate folder statistics
+  const folderStats = {
+    totalFolders: folders.length,
+    totalFiles: folders.reduce((sum, folder) => sum + folder.fileCount, 0),
+    totalSize: folders.reduce((sum, folder) => sum + folder.totalSize, 0),
+    largestFolder: folders.reduce((prev, current) => (prev.totalSize > current.totalSize) ? prev : current, folders[0])
+  };
+
   return (
-    <FilesDashboardShell
+    <>
+      <FilesDashboardShell
       title="Folders"
       description="Organize your files into folders"
       breadcrumbs={breadcrumbs}
       actions={
-        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-          <DialogTrigger asChild>
-            <Button disabled={createFolder.isPending}>
-              <Plus className="w-4 h-4 mr-2" />
-              New Folder
+        <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1">
+            <span className="text-xs text-muted-foreground">Auto-refresh:</span>
+            <Button
+              variant={autoRefresh ? "default" : "outline"}
+              size="sm"
+              onClick={() => setAutoRefresh(!autoRefresh)}
+            >
+              {autoRefresh ? 'On' : 'Off'}
             </Button>
-          </DialogTrigger>
-          <DialogContent>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+            <DialogTrigger asChild>
+              <Button disabled={createFolder.isPending}>
+                <Plus className="w-4 h-4 mr-2" />
+                New Folder
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Folder</DialogTitle>
             </DialogHeader>
@@ -149,22 +282,87 @@ export default function FoldersPage() {
             </div>
           </DialogContent>
         </Dialog>
-      }
+      </div>
+    }
     >
-      <div className="space-y-6">
-        <FilesNavigation />
+        <div className="space-y-6">
+          <FilesNavigation />
 
-        {/* Error State */}
-        {error && (
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Failed to load folders: {error.message}
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {/* Search */}
+          {/* Error State with Retry */}
+          {error && (
+            <Alert className="border-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <div>
+                  Failed to load folders: {error.message}
+                </div>
+                <Button variant="outline" size="sm" onClick={handleRefresh}>
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Folder Statistics */}
+          {!isLoading && folders.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <Folder className="w-8 h-8 text-blue-600" />
+                    <div className="ml-4">
+                      <p className="text-2xl font-bold">
+                        {folderStats.totalFolders}
+                      </p>
+                      <p className="text-muted-foreground">Total Folders</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <File className="w-8 h-8 text-green-600" />
+                    <div className="ml-4">
+                      <p className="text-2xl font-bold">
+                        {folderStats.totalFiles}
+                      </p>
+                      <p className="text-muted-foreground">Total Files</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <HardDrive className="w-8 h-8 text-purple-600" />
+                    <div className="ml-4">
+                      <p className="text-2xl font-bold">
+                        {formatFileSize(folderStats.totalSize)}
+                      </p>
+                      <p className="text-muted-foreground">Total Size</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <Grid3X3 className="w-8 h-8 text-orange-600" />
+                    <div className="ml-4">
+                      <p className="text-2xl font-bold">
+                        {folderStats.largestFolder ? formatFileSize(folderStats.largestFolder.totalSize) : 'N/A'}
+                      </p>
+                      <p className="text-muted-foreground">Largest Folder</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}        {/* Search */}
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <Input
@@ -280,7 +478,81 @@ export default function FoldersPage() {
             </CardContent>
           </Card>
         )}
-      </div>
-    </FilesDashboardShell>
+        </div>
+      </FilesDashboardShell>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Folder</DialogTitle>
+          </DialogHeader>
+        <div className="space-y-4">
+          <p>
+            Are you sure you want to delete the folder <strong>"{selectedFolder?.name}"</strong>? 
+            This action cannot be undone and will delete all files within this folder.
+          </p>
+          {selectedFolder && (
+            <div className="p-3 bg-muted rounded-lg">
+              <div className="text-sm text-muted-foreground">
+                <div>Files: {selectedFolder.fileCount}</div>
+                <div>Size: {formatFileSize(selectedFolder.totalSize)}</div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              Delete Folder
+            </Button>
+          </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Folder Dialog */}
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Folder</DialogTitle>
+          </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="renameFolderName" className="text-sm font-medium">
+              New Folder Name
+            </label>
+            <Input
+              id="renameFolderName"
+              placeholder="Enter new folder name"
+              value={newFolderNameForRename}
+              onChange={(e) => setNewFolderNameForRename(e.target.value)}
+              className="mt-1"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleRenameFolder();
+                }
+              }}
+            />
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowRenameDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleRenameFolder}
+              disabled={!newFolderNameForRename.trim() || newFolderNameForRename.trim() === selectedFolder?.name}
+            >
+              Rename Folder
+            </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

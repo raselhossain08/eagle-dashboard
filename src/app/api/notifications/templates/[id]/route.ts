@@ -4,10 +4,11 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const response = await fetch(`${API_BASE_URL}/notifications/templates/${params.id}`, {
+    const resolvedParams = await params
+    const response = await fetch(`${API_BASE_URL}/notifications/templates/${resolvedParams.id}`, {
       headers: {
         'Authorization': request.headers.get('Authorization') || '',
         'Content-Type': 'application/json',
@@ -34,12 +35,13 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params
     const body = await request.json();
     
-    const response = await fetch(`${API_BASE_URL}/notifications/templates/${params.id}`, {
+    const response = await fetch(`${API_BASE_URL}/notifications/templates/${resolvedParams.id}`, {
       method: 'PATCH',
       headers: {
         'Authorization': request.headers.get('Authorization') || '',
@@ -69,10 +71,11 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const response = await fetch(`${API_BASE_URL}/notifications/templates/${params.id}`, {
+    const resolvedParams = await params
+    const response = await fetch(`${API_BASE_URL}/notifications/templates/${resolvedParams.id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': request.headers.get('Authorization') || '',

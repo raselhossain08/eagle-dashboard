@@ -15,7 +15,7 @@ import { useCreateSupportNote } from '@/hooks/useSupport';
 import { useSupportStore } from '@/stores/support-store';
 
 export default function CreateTicketPage() {
-  const { mutate: createNote, isLoading } = useCreateSupportNote();
+  const { mutate: createNote, isPending } = useCreateSupportNote();
   const currentCustomer = useSupportStore((state) => state.currentCustomer);
   const [formData, setFormData] = useState({
     title: '',
@@ -177,9 +177,9 @@ export default function CreateTicketPage() {
                   <Button variant="outline" type="button">
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isLoading}>
-                    <Save className="w-4 h-4 mr-2" />
-                    {isLoading ? 'Creating...' : 'Create Ticket'}
+                  <Button type="submit" disabled={isPending}>
+                    <Save className="h-4 w-4 mr-2" />
+                    {isPending ? 'Creating...' : 'Create Ticket'}
                   </Button>
                 </div>
               </form>

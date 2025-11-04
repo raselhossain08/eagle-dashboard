@@ -22,7 +22,7 @@ export function WebhookManager({ endpoint, onSave, onTest }: WebhookManagerProps
     url: endpoint?.url || '',
     events: endpoint?.events || [],
     secret: endpoint?.secret || '',
-    enabled: endpoint?.status === 'active' || true
+    enabled: Boolean(endpoint?.status === 'active' || true)
   });
 
   const availableEvents = [
@@ -94,7 +94,7 @@ export function WebhookManager({ endpoint, onSave, onTest }: WebhookManagerProps
               value={formData.secret}
               onChange={(e) => setFormData(prev => ({ ...prev, secret: e.target.value }))}
             />
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Used to verify webhook signatures (optional)
             </p>
           </div>

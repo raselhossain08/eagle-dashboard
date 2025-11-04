@@ -27,21 +27,21 @@ interface SupportMetricsProps {
 
 export function SupportMetrics({ stats, trends }: SupportMetricsProps) {
   const getTrendIcon = (value: number) => {
-    if (value > 0) return <TrendingUp className="w-4 h-4 text-green-500" />;
-    if (value < 0) return <TrendingDown className="w-4 h-4 text-red-500" />;
+    if (value > 0) return <TrendingUp className="w-4 h-4 text-green-500 dark:text-green-400" />;
+    if (value < 0) return <TrendingDown className="w-4 h-4 text-red-500 dark:text-red-400" />;
     return null;
   };
 
   const getTrendColor = (value: number) => {
-    if (value > 0) return 'text-green-600';
-    if (value < 0) return 'text-red-600';
-    return 'text-gray-600';
+    if (value > 0) return 'text-green-600 dark:text-green-400';
+    if (value < 0) return 'text-red-600 dark:text-red-400';
+    return 'text-gray-600 dark:text-gray-400';
   };
 
   const getPerformanceColor = (value: number) => {
-    if (value >= 90) return 'text-green-600';
-    if (value >= 80) return 'text-yellow-600';
-    return 'text-red-600';
+    if (value >= 90) return 'text-green-600 dark:text-green-400';
+    if (value >= 80) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-red-600 dark:text-red-400';
   };
 
   return (
@@ -60,10 +60,6 @@ export function SupportMetrics({ stats, trends }: SupportMetricsProps) {
           <Progress 
             value={Math.max(0, 100 - stats.responseTime)} 
             className="mt-2"
-            indicatorClassName={
-              stats.responseTime <= 15 ? 'bg-green-500' :
-              stats.responseTime <= 30 ? 'bg-yellow-500' : 'bg-red-500'
-            }
           />
         </CardContent>
       </Card>
@@ -82,10 +78,6 @@ export function SupportMetrics({ stats, trends }: SupportMetricsProps) {
           <Progress 
             value={stats.resolutionRate} 
             className="mt-2"
-            indicatorClassName={
-              stats.resolutionRate >= 90 ? 'bg-green-500' :
-              stats.resolutionRate >= 80 ? 'bg-yellow-500' : 'bg-red-500'
-            }
           />
         </CardContent>
       </Card>
@@ -107,8 +99,8 @@ export function SupportMetrics({ stats, trends }: SupportMetricsProps) {
                 key={star}
                 className={`w-4 h-4 ${
                   star <= Math.round(stats.satisfactionScore)
-                    ? 'text-yellow-500 fill-yellow-500'
-                    : 'text-gray-300'
+                    ? 'text-yellow-500 fill-yellow-500 dark:text-yellow-400 dark:fill-yellow-400'
+                    : 'text-gray-300 dark:text-gray-600'
                 }`}
               />
             ))}
@@ -145,10 +137,6 @@ export function SupportMetrics({ stats, trends }: SupportMetricsProps) {
           <Progress 
             value={stats.teamPerformance} 
             className="mt-2"
-            indicatorClassName={
-              stats.teamPerformance >= 90 ? 'bg-green-500' :
-              stats.teamPerformance >= 80 ? 'bg-yellow-500' : 'bg-red-500'
-            }
           />
           <div className="flex items-center justify-between text-sm mt-2">
             <span className="text-muted-foreground">Target: 90%</span>
@@ -169,10 +157,6 @@ export function SupportMetrics({ stats, trends }: SupportMetricsProps) {
           <Progress 
             value={stats.firstContactResolution} 
             className="mt-2"
-            indicatorClassName={
-              stats.firstContactResolution >= 80 ? 'bg-green-500' :
-              stats.firstContactResolution >= 70 ? 'bg-yellow-500' : 'bg-red-500'
-            }
           />
           <div className="text-sm text-muted-foreground mt-1">
             Resolved on first contact
@@ -193,7 +177,7 @@ export function SupportMetrics({ stats, trends }: SupportMetricsProps) {
           <div className="flex items-center space-x-2 mt-2">
             <div className="flex-1 bg-secondary rounded-full h-2">
               <div 
-                className="bg-blue-500 h-2 rounded-full" 
+                className="bg-blue-500 dark:bg-blue-600 h-2 rounded-full" 
                 style={{ width: `${Math.min(100, (stats.activeTickets / 50) * 100)}%` }}
               />
             </div>
@@ -212,10 +196,6 @@ export function SupportMetrics({ stats, trends }: SupportMetricsProps) {
           <Progress 
             value={stats.escalationRate} 
             className="mt-2"
-            indicatorClassName={
-              stats.escalationRate <= 10 ? 'bg-green-500' :
-              stats.escalationRate <= 20 ? 'bg-yellow-500' : 'bg-red-500'
-            }
           />
           <div className="text-sm text-muted-foreground mt-1">
             Tickets escalated to higher tier

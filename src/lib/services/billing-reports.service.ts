@@ -4,6 +4,7 @@ import {
   MrrReportData, 
   RevenueReportData, 
   CohortAnalysisData,
+  CustomerCohortData,
   DashboardStats,
   PlanPerformance,
   InvoiceSummary,
@@ -64,7 +65,7 @@ export class BillingReportsService {
     return response.json();
   }
 
-  async getCustomerCohort(type: 'weekly' | 'monthly' = 'monthly', periods: number = 12): Promise<any> {
+  async getCustomerCohort(type: 'weekly' | 'monthly' = 'monthly', periods: number = 12): Promise<CustomerCohortData[]> {
     const response = await fetch(`${this.baseURL}/billing/reports/customer-cohort?type=${type}&periods=${periods}`, {
       headers: this.getAuthHeaders(),
     });

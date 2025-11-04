@@ -1,20 +1,16 @@
 // hooks/use-billing-overview.ts
 import { useQuery } from '@tanstack/react-query';
-import { RevenueOverviewData, MrrTrendData } from '@/types/billing';
+import { RevenueOverviewData, MrrTrendData, RevenueBreakdownData } from '@/types/billing';
 
 interface BillingOverviewData {
   overview: RevenueOverviewData;
   mrrTrends: MrrTrendData[];
-  revenueBreakdown: {
-    recurringRevenue: number;
-    oneTimeRevenue: number;
-    refunds: number;
-  };
+  revenueBreakdown: RevenueBreakdownData;
 }
 
 export function useBillingOverview(dateRange?: { from: Date; to: Date }) {
   return useQuery({
-    queryKey: ['billing-overview', dateRange],
+    queryKey: ['billing-overview', dateRange ? JSON.stringify(dateRange) : 'default'],
     queryFn: async (): Promise<BillingOverviewData> => {
       // Mock data - replace with actual API call
       return {
@@ -31,10 +27,10 @@ export function useBillingOverview(dateRange?: { from: Date; to: Date }) {
           netRevenue: 1435000,
         },
         mrrTrends: [
-          { date: '2024-01', currentMrr: 1150000, newMrr: 120000, churnedMrr: 35000, netMrr: 1115000 },
-          { date: '2024-02', currentMrr: 1180000, newMrr: 135000, churnedMrr: 40000, netMrr: 1140000 },
-          { date: '2024-03', currentMrr: 1220000, newMrr: 140000, churnedMrr: 42000, netMrr: 1178000 },
-          { date: '2024-04', currentMrr: 1250000, newMrr: 150000, churnedMrr: 45000, netMrr: 1205000 },
+          { month: '2024-01', mrr: 1150000, newSubscriptions: 120, churned: 35, growth: 2.1 },
+          { month: '2024-02', mrr: 1180000, newSubscriptions: 135, churned: 40, growth: 2.6 },
+          { month: '2024-03', mrr: 1220000, newSubscriptions: 140, churned: 42, growth: 3.4 },
+          { month: '2024-04', mrr: 1250000, newSubscriptions: 150, churned: 45, growth: 2.5 },
         ],
         revenueBreakdown: {
           recurringRevenue: 1205000,

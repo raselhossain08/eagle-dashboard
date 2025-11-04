@@ -34,6 +34,17 @@ export interface CustomerListResponse {
   total: number;
   page: number;
   totalPages: number;
+  activeCount?: number;
+  premiumCount?: number;
+  newThisMonth?: number;
+  stats?: {
+    totalCustomers: number;
+    activeCustomers: number;
+    premiumCustomers: number;
+    enterpriseCustomers: number;
+    newThisMonth: number;
+    averageSatisfaction: number;
+  };
 }
 
 export interface CustomerParams {
@@ -47,7 +58,7 @@ export interface CustomerParams {
 }
 
 class CustomersService {
-  private baseUrl = '/api/users';
+  private baseUrl = '/api/v1/users';
 
   async getCustomers(params: CustomerParams = {}): Promise<CustomerListResponse> {
     try {
@@ -69,16 +80,38 @@ class CustomersService {
         total: number;
         page: number;
         totalPages: number;
+        stats?: any;
       }>(`${this.baseUrl}?${queryParams.toString()}`);
 
       // Transform users to customers format
       const customers = response.users.map((user: any) => this.transformUserToCustomer(user));
+
+      // Calculate quick stats from the data
+      const activeCount = customers.filter(c => c.status === 'active').length;
+      const premiumCount = customers.filter(c => ['premium', 'enterprise'].includes(c.supportTier)).length;
+      const currentMonth = new Date();
+      const newThisMonth = customers.filter(c => {
+        const createdDate = new Date(c.createdAt);
+        return createdDate.getMonth() === currentMonth.getMonth() &&
+               createdDate.getFullYear() === currentMonth.getFullYear();
+      }).length;
 
       return {
         customers,
         total: response.total,
         page: response.page,
         totalPages: response.totalPages,
+        activeCount,
+        premiumCount,
+        newThisMonth,
+        stats: response.stats || {
+          totalCustomers: response.total,
+          activeCustomers: activeCount,
+          premiumCustomers: premiumCount,
+          enterpriseCustomers: customers.filter(c => c.supportTier === 'enterprise').length,
+          newThisMonth,
+          averageSatisfaction: customers.reduce((sum, c) => sum + c.satisfactionScore, 0) / customers.length || 4.5,
+        },
       };
     } catch (error) {
       console.error('Failed to fetch customers:', error);
@@ -114,7 +147,7 @@ class CustomersService {
         unresolvedNotes: number;
         priorityNotes: number;
         recentActivity: any[];
-      }>(`/api/support/customer/${customerId}/summary`);
+      }>(`/api/v1/support/customer/${customerId}/summary`);
       return response;
     } catch (error) {
       console.error('Failed to fetch customer support summary:', error);

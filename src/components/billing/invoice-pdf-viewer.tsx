@@ -102,8 +102,8 @@ export function InvoicePdfViewer({ invoice, customer, company, isPreview = false
           <div>
             <div className="font-medium">Status</div>
             <Badge variant={
-              invoice.status === 'paid' ? 'default' :
-              invoice.status === 'overdue' ? 'destructive' : 'outline'
+              invoice.status === 'open' ? 'default' :
+              invoice.status === 'void' || invoice.status === 'uncollectible' ? 'destructive' : 'outline'
             }>
               {invoice.status}
             </Badge>

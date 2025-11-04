@@ -6,12 +6,16 @@ import { DateRangePicker } from '@/components/reports/DateRangePicker';
 import { ExportControls } from '@/components/reports/ExportControls';
 import { RevenueChart } from '@/components/reports/RevenueChart';
 import { DataTable } from '@/components/reports/DataTable';
-import { useRevenueReport, useSubscriptionReport } from '@/hooks/useReports';
+import { useRevenueReport, useSubscriptionReport, useExportUserReport } from '@/hooks/useReports';
 import { addDays, format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
-import { TrendingUp, DollarSign, Users, Percent } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, RefreshCw, TrendingUp, TrendingDown, DollarSign, Users, Percent, BarChart3, ArrowUp, ArrowDown, Minus, CheckCircle2 } from 'lucide-react';
+import { LoadingSpinner } from '@/components/loading-spinner';
+import { FinancialErrorBoundary } from './error-boundary';
 
-export default function FinancialReportsPage() {
+function FinancialReportsContent() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -30),
     to: new Date(),
@@ -23,12 +27,41 @@ export default function FinancialReportsPage() {
     groupBy: 'day' as const,
   };
 
-  const { data: revenueData, isLoading: revenueLoading } = useRevenueReport(revenueParams);
-  const { data: subscriptionData, isLoading: subscriptionLoading } = useSubscriptionReport(revenueParams);
+  const { 
+    data: revenueData, 
+    isLoading: revenueLoading, 
+    error: revenueError,
+    refetch: refetchRevenue
+  } = useRevenueReport(revenueParams);
+  
+  const { 
+    data: subscriptionData, 
+    isLoading: subscriptionLoading,
+    error: subscriptionError,
+    refetch: refetchSubscriptions
+  } = useSubscriptionReport(revenueParams);
 
-  const handleExport = (format: any) => {
-    console.log('Exporting in format:', format);
+  const exportMutation = useExportUserReport();
+
+  const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
+    try {
+      await exportMutation.mutateAsync({
+        reportType: 'financial' as any,
+        params: revenueParams,
+        format
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
   };
+
+  const handleRefresh = () => {
+    refetchRevenue();
+    refetchSubscriptions();
+  };
+
+  const hasError = revenueError || subscriptionError;
+  const isLoading = revenueLoading || subscriptionLoading;
 
   // Calculate summary metrics
   const totalRevenue = revenueData?.reduce((sum: number, item: any) => sum + item.revenue, 0) || 0;
@@ -51,70 +84,174 @@ export default function FinancialReportsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Financial Reports</h1>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <BarChart3 className="h-8 w-8 text-blue-500" />
+            Financial Reports & Analytics
+          </h1>
           <p className="text-muted-foreground">
             Revenue analytics, subscription metrics, and financial performance
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <DateRangePicker value={dateRange} onChange={setDateRange} />
           <ExportControls onExport={handleExport} />
         </div>
       </div>
 
+      {/* Real-time Data Status */}
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${hasError ? 'bg-red-500' : 'bg-green-500'}`} />
+          <span>{hasError ? 'Connection Error' : 'Live Financial Data'}</span>
+        </div>
+        <span>•</span>
+        <span>Auto-refresh: 5min</span>
+        <span>•</span>
+        <span>Period: {dateRange?.from && dateRange?.to ? 
+          `${format(dateRange.from, 'MMM dd, yyyy')} - ${format(dateRange.to, 'MMM dd, yyyy')}` : 
+          'Last 30 days'
+        }</span>
+      </div>
+
+      {/* Error Alert */}
+      {hasError && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Failed to load financial data: {(revenueError || subscriptionError)?.message}
+            <Button 
+              variant="link" 
+              className="p-0 h-auto ml-2"
+              onClick={handleRefresh}
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Summary Cards */}
       <div className="grid gap-6 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-green-500" />
+              Total Revenue
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalRevenue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              {avgGrowthRate > 0 ? '+' : ''}{avgGrowthRate.toFixed(1)}% from last period
-            </p>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : hasError ? (
+              <div className="text-xl font-bold text-muted-foreground">--</div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">${totalRevenue.toLocaleString()}</div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  {avgGrowthRate >= 0 ? 
+                    <ArrowUp className="w-3 h-3 mr-1 text-green-500" /> :
+                    <ArrowDown className="w-3 h-3 mr-1 text-red-500" />
+                  }
+                  {avgGrowthRate > 0 ? '+' : ''}{avgGrowthRate.toFixed(1)}% from last period
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly MRR</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-blue-500" />
+              Monthly MRR
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalMRR.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              {avgSubscriptionGrowth > 0 ? '+' : ''}{avgSubscriptionGrowth.toFixed(1)}% growth rate
-            </p>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : hasError ? (
+              <div className="text-xl font-bold text-muted-foreground">--</div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">${totalMRR.toLocaleString()}</div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  {avgSubscriptionGrowth >= 0 ? 
+                    <TrendingUp className="w-3 h-3 mr-1 text-green-500" /> :
+                    <TrendingDown className="w-3 h-3 mr-1 text-red-500" />
+                  }
+                  {avgSubscriptionGrowth > 0 ? '+' : ''}{avgSubscriptionGrowth.toFixed(1)}% growth rate
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Transactions</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Users className="w-4 h-4 text-purple-500" />
+              Transactions
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalSubscriptions.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              Total for selected period
-            </p>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : hasError ? (
+              <div className="text-xl font-bold text-muted-foreground">--</div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{totalSubscriptions.toLocaleString()}</div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <Users className="w-3 h-3 mr-1 text-purple-500" />
+                  Total for selected period
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Order Value</CardTitle>
-            <Percent className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Percent className="w-4 h-4 text-orange-500" />
+              Avg Order Value
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              ${totalSubscriptions > 0 ? (totalRevenue / totalSubscriptions).toFixed(0) : '0'}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Per transaction
-            </p>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : hasError ? (
+              <div className="text-xl font-bold text-muted-foreground">--</div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  ${totalSubscriptions > 0 ? (totalRevenue / totalSubscriptions).toFixed(0) : '0'}
+                </div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  {(totalRevenue / Math.max(totalSubscriptions, 1)) >= 100 ?
+                    <CheckCircle2 className="w-3 h-3 mr-1 text-green-500" /> :
+                    <Percent className="w-3 h-3 mr-1 text-orange-500" />
+                  }
+                  Per transaction
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -194,30 +331,102 @@ export default function FinancialReportsPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Revenue Insights</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              Revenue Insights
+            </CardTitle>
             <CardDescription>Key performance indicators and trends</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>• Revenue trend: {avgGrowthRate > 0 ? 'Growing' : avgGrowthRate < 0 ? 'Declining' : 'Stable'} at {Math.abs(avgGrowthRate).toFixed(1)}%</p>
-            <p>• Peak revenue: ${Math.max(...(revenueData?.map((d: any) => d.revenue) || [0])).toLocaleString()}</p>
-            <p>• Average daily revenue: ${(totalRevenue / (revenueData?.length || 1)).toFixed(0)}</p>
-            <p>• Data points analyzed: {revenueData?.length || 0}</p>
+          <CardContent className="space-y-3 text-sm">
+            {isLoading ? (
+              <div className="space-y-2">
+                <div className="h-4 w-full bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                <div className="h-4 w-3/4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                <div className="h-4 w-1/2 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            ) : hasError ? (
+              <p className="text-muted-foreground">Unable to load revenue insights</p>
+            ) : revenueData && revenueData.length > 0 ? (
+              <>
+                <div className="flex items-start gap-2">
+                  {avgGrowthRate >= 0 ? 
+                    <TrendingUp className="w-4 h-4 mt-0.5 text-green-500" /> :
+                    <TrendingDown className="w-4 h-4 mt-0.5 text-red-500" />
+                  }
+                  <span>Revenue trend: <strong>{avgGrowthRate > 0 ? 'Growing' : avgGrowthRate < 0 ? 'Declining' : 'Stable'}</strong> at {Math.abs(avgGrowthRate).toFixed(1)}% rate</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <DollarSign className="w-4 h-4 mt-0.5 text-blue-500" />
+                  <span>Peak revenue day: <strong>${Math.max(...(revenueData?.map((d: any) => d.revenue) || [0])).toLocaleString()}</strong> maximum daily revenue</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <BarChart3 className="w-4 h-4 mt-0.5 text-purple-500" />
+                  <span>Average daily revenue: <strong>${(totalRevenue / (revenueData?.length || 1)).toFixed(0)}</strong> per day</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 text-orange-500" />
+                  <span>Analysis period: <strong>{revenueData?.length || 0}</strong> days of financial data</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground">No revenue insights available for the selected period</p>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Business Performance</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-blue-500" />
+              Business Performance
+            </CardTitle>
             <CardDescription>Financial health indicators</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>• MRR growth rate: {avgSubscriptionGrowth > 0 ? '+' : ''}{avgSubscriptionGrowth.toFixed(1)}%</p>
-            <p>• Revenue predictability: {totalMRR > 0 ? 'High' : 'Low'} (based on MRR)</p>
-            <p>• Transaction volume: {totalSubscriptions.toLocaleString()} transactions</p>
-            <p>• Period analyzed: {revenueData?.length || 0} days</p>
+          <CardContent className="space-y-3 text-sm">
+            {isLoading ? (
+              <div className="space-y-2">
+                <div className="h-4 w-full bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                <div className="h-4 w-4/5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                <div className="h-4 w-2/3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            ) : hasError ? (
+              <p className="text-muted-foreground">Unable to load business performance metrics</p>
+            ) : subscriptionData && subscriptionData.length > 0 ? (
+              <>
+                <div className="flex items-start gap-2">
+                  {avgSubscriptionGrowth >= 0 ? 
+                    <TrendingUp className="w-4 h-4 mt-0.5 text-green-500" /> :
+                    <TrendingDown className="w-4 h-4 mt-0.5 text-red-500" />
+                  }
+                  <span>MRR growth rate: <strong>{avgSubscriptionGrowth > 0 ? '+' : ''}{avgSubscriptionGrowth.toFixed(1)}%</strong> {avgSubscriptionGrowth >= 10 ? '(Excellent)' : avgSubscriptionGrowth >= 5 ? '(Good)' : '(Needs improvement)'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 text-blue-500" />
+                  <span>Revenue predictability: <strong>{totalMRR > 0 ? 'High' : 'Low'}</strong> (${totalMRR.toLocaleString()} MRR base)</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Users className="w-4 h-4 mt-0.5 text-purple-500" />
+                  <span>Transaction volume: <strong>{totalSubscriptions.toLocaleString()}</strong> transactions processed</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <DollarSign className="w-4 h-4 mt-0.5 text-orange-500" />
+                  <span>Revenue efficiency: <strong>${(totalRevenue / Math.max(totalSubscriptions, 1)).toFixed(2)}</strong> average per transaction</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground">No business performance data available for the selected period</p>
+            )}
           </CardContent>
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function FinancialReportsPage() {
+  return (
+    <FinancialErrorBoundary>
+      <FinancialReportsContent />
+    </FinancialErrorBoundary>
   );
 }

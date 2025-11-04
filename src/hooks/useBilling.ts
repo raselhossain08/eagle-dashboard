@@ -281,6 +281,36 @@ export const useSubscriberActivity = (userId: string, filters?: { limit?: number
       return apiClient.get(`/subscribers/${userId}/activities`, params);
     },
     enabled: !!userId,
+    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
+  });
+};
+
+// Get activity statistics
+export const useSubscriberActivityStats = (userId: string) => {
+  return useQuery({
+    queryKey: ['billing', 'activity-stats', userId],
+    queryFn: async () => {
+      return apiClient.get<{
+        totalActivities: number;
+        recentActivities: number;
+        byType: Record<string, number>;
+        averagePerDay: number;
+        mostActiveDay: string;
+      }>(`/subscribers/${userId}/activity-stats`);
+    },
+    enabled: !!userId,
+    refetchInterval: 60000, // Refetch every minute
+  });
+};
+
+// Get activity types available for filtering
+export const useActivityTypes = () => {
+  return useQuery({
+    queryKey: ['activity-types'],
+    queryFn: async (): Promise<string[]> => {
+      return apiClient.get('/activities/types');
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 

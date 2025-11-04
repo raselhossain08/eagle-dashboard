@@ -4,10 +4,11 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { emailLogId: string } }
+  { params }: { params: Promise<{ emailLogId: string }> }
 ) {
   try {
-    const response = await fetch(`${API_BASE_URL}/notifications/email/resend/${params.emailLogId}`, {
+    const resolvedParams = await params
+    const response = await fetch(`${API_BASE_URL}/notifications/email/resend/${resolvedParams.emailLogId}`, {
       method: 'POST',
       headers: {
         'Authorization': request.headers.get('Authorization') || '',

@@ -1,4 +1,5 @@
-import { Contract, Signature, EvidencePackage, TechnicalEvidence } from '@/lib/types/contracts'
+import { Contract, Signature, EvidencePackage } from '@/lib/types/contracts'
+import { TechnicalEvidence } from '@/types/contracts'
 
 export class SecurityService {
   private readonly algorithm = 'SHA-256'
@@ -31,26 +32,46 @@ export class SecurityService {
   /**
    * Generate comprehensive evidence package
    */
-  generateEvidencePackage(signature: Signature, contract: Contract): EvidencePackage {
-    const technicalEvidence: TechnicalEvidence = {
-      ipAddress: signature.ipAddress,
-      userAgent: signature.userAgent,
-      deviceInfo: signature.deviceInfo || this.getDeviceInfo(),
-      geolocation: signature.geolocation,
-      timestamp: new Date()
-    }
-
-    const evidencePackage: EvidencePackage = {
+  generateEvidencePackage(signature: Signature, contract: Contract): Partial<EvidencePackage> {
+    const evidencePackage: Partial<EvidencePackage> = {
       id: `evd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       contractId: contract.id,
       signatureId: signature.id,
-      technicalEvidence,
-      legalConsents: {
-        terms: signature.consents.terms,
-        privacy: signature.consents.privacy,
-        cancellation: signature.consents.cancellation,
-        termsVersion: contract.termsVersion,
-        privacyVersion: contract.privacyVersion
+      evidence: {
+        signer: {
+          id: signature.userId,
+          fullName: signature.fullName,
+          email: signature.email,
+          company: signature.company
+        },
+        contract: {
+          id: contract.id,
+          title: contract.title,
+          contentHash: contract.contentHash,
+          templateVersion: '1.0' // Default version since not available
+        },
+        signature: {
+          type: signature.signatureType,
+          data: signature.signatureData,
+          image: signature.signatureImage,
+          timestamp: signature.signedAt
+        },
+        consents: {
+          terms: signature.consents.terms,
+          privacy: signature.consents.privacy,
+          cancellation: signature.consents.cancellation
+        },
+        technical: {
+          ipAddress: signature.ipAddress,
+          userAgent: signature.userAgent,
+          deviceInfo: signature.deviceInfo,
+          osInfo: signature.osInfo,
+          browserInfo: signature.browserInfo
+        },
+        legal: {
+          termsVersion: '1.0', // Default version since not available in contract
+          privacyVersion: '1.0'
+        }
       },
       createdAt: new Date()
     }

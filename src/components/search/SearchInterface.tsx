@@ -21,8 +21,16 @@ export function SearchInterface() {
     showSuggestions
   } = useSearchStore();
 
-  const { data: suggestions } = useSearchSuggestions();
   const [localQuery, setLocalQuery] = useState(currentQuery);
+  const { data: suggestionsData } = useSearchSuggestions(localQuery || '');
+  
+  // Transform API suggestions to match component format
+  const suggestions = suggestionsData?.suggestions.map(s => ({
+    text: s.value,
+    type: s.type as 'query' | 'user' | 'resource',
+    score: 1, // Default score since API doesn't provide it
+    metadata: { id: s.id, email: s.email, company: s.company }
+  })) || [];
 
   useEffect(() => {
     setLocalQuery(currentQuery);

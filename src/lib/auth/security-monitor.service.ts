@@ -1,5 +1,5 @@
 // lib/auth/security-monitor.service.ts
-import { LoginAttempt, DeviceInfo, SecurityEvent, SecurityAlertProps } from '@/types/auth';
+import { LoginAttempt, DeviceInfo, SecurityEvent, SecurityAlert } from '@/types/auth';
 
 export interface SecurityEventFilters {
   type?: string;
@@ -13,7 +13,7 @@ export class SecurityMonitorService {
   private static attempts = new Map<string, { count: number; firstAttempt: number; lastAttempt: number }>();
   private static readonly RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
   private static readonly MAX_ATTEMPTS = 5;
-  private static securityAlerts: SecurityAlertProps[] = [];
+  private static securityAlerts: SecurityAlert[] = [];
 
   // Rate Limiting
   static checkRateLimit(identifier: string): { allowed: boolean; remainingAttempts: number; resetTime: number } {
@@ -164,11 +164,11 @@ export class SecurityMonitorService {
   }
 
   // Security Alerts Management
-  static addSecurityAlert(alert: Omit<SecurityAlertProps, 'id'>): string {
-    const id = `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const newAlert: SecurityAlertProps = {
+  static addSecurityAlert(alert: Omit<SecurityAlert, 'id'>): string {
+    const alertId = `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newAlert: SecurityAlert = {
       ...alert,
-      id
+      id: alertId
     };
 
     this.securityAlerts.unshift(newAlert);
@@ -179,10 +179,10 @@ export class SecurityMonitorService {
     }
 
     this.persistAlerts();
-    return id;
+    return alertId;
   }
 
-  static getSecurityAlerts(): SecurityAlertProps[] {
+  static getSecurityAlerts(): SecurityAlert[] {
     return [...this.securityAlerts];
   }
 

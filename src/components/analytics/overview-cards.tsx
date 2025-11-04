@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { OverviewStats } from "@/lib/api/analytics.service";
+import { OverviewStats } from "@/services/analytics.service";
 import { Users, Eye, Clock, MousePointerClick, TrendingUp, TrendingDown } from "lucide-react";
 
 interface OverviewCardsProps {
@@ -52,40 +52,58 @@ const StatCard = ({
 };
 
 export function OverviewCards({ data, isLoading, dateRange }: OverviewCardsProps) {
+  // Helper function to safely format numbers
+  const formatNumber = (value: number | undefined) => {
+    return value !== undefined && value !== null ? value.toLocaleString() : "0";
+  };
+
+  // Helper function to safely format session duration
+  const formatSessionDuration = (duration: number | undefined) => {
+    if (!duration) return "0m 0s";
+    const minutes = Math.floor(duration / 60);
+    const seconds = Math.floor(duration % 60);
+    return `${minutes}m ${seconds}s`;
+  };
+
+  // Helper function to safely format percentage
+  const formatPercentage = (value: number | undefined) => {
+    return value !== undefined && value !== null ? `${value.toFixed(1)}%` : "0%";
+  };
+
   const stats = [
     {
       title: "Total Users",
-      value: data?.totalUsers.toLocaleString() || "0",
+      value: formatNumber(data?.totalUsers),
       icon: Users,
       trend: { value: 12.5, isPositive: true },
     },
     {
       title: "Total Sessions",
-      value: data?.totalSessions.toLocaleString() || "0",
+      value: formatNumber(data?.totalSessions),
       icon: Eye,
       trend: { value: 8.3, isPositive: true },
     },
     {
       title: "Page Views",
-      value: data?.totalPageViews.toLocaleString() || "0",
+      value: formatNumber(data?.totalPageViews || (data as any)?.pageViews),
       icon: MousePointerClick,
       trend: { value: 15.2, isPositive: true },
     },
     {
       title: "Avg. Session",
-      value: data ? `${Math.floor(data.avgSessionDuration / 60)}m ${data.avgSessionDuration % 60}s` : "0m 0s",
+      value: formatSessionDuration(data?.averageSessionDuration || (data as any)?.avgSessionDuration),
       icon: Clock,
       trend: { value: -2.1, isPositive: false },
     },
     {
       title: "Bounce Rate",
-      value: data ? `${data.bounceRate.toFixed(1)}%` : "0%",
+      value: formatPercentage(data?.bounceRate),
       icon: TrendingDown,
       trend: { value: -5.7, isPositive: true },
     },
     {
-      title: "New Users",
-      value: data?.newUsers.toLocaleString() || "0",
+      title: "Unique Visitors",
+      value: formatNumber((data as any)?.uniqueVisitors || data?.newUsers),
       icon: Users,
       trend: { value: 10.3, isPositive: true },
     },

@@ -31,6 +31,18 @@ export const useUpdateSubscriber = () => {
   });
 };
 
+export const useCreateSubscriber = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (data: any) => subscribersService.createSubscriber(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscribers'] });
+      queryClient.invalidateQueries({ queryKey: ['subscriber-analytics'] });
+    },
+  });
+};
+
 export const useDeleteSubscriber = () => {
   const queryClient = useQueryClient();
   
@@ -98,5 +110,36 @@ export const useDeleteSegment = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['segments'] });
     },
+  });
+};
+
+// Enhanced segment analytics hooks
+export const useSegmentAnalytics = (segmentId: string) => {
+  return useQuery({
+    queryKey: ['segments', segmentId, 'analytics'],
+    queryFn: () => subscribersService.getSegmentAnalytics(segmentId),
+    enabled: !!segmentId,
+  });
+};
+
+export const useSegmentStatistics = (segmentId: string) => {
+  return useQuery({
+    queryKey: ['segments', segmentId, 'statistics'],
+    queryFn: () => subscribersService.getSegmentStatistics(segmentId),
+    enabled: !!segmentId,
+  });
+};
+
+export const useExportSegmentSubscribers = () => {
+  return useMutation({
+    mutationFn: ({ segmentId, format }: { segmentId: string; format?: string }) =>
+      subscribersService.exportSegmentSubscribers(segmentId, format),
+  });
+};
+
+export const useSendSegmentEmail = () => {
+  return useMutation({
+    mutationFn: ({ segmentId, emailData }: { segmentId: string; emailData: any }) =>
+      subscribersService.sendSegmentEmail(segmentId, emailData),
   });
 };

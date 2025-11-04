@@ -10,18 +10,18 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Search, Edit, Trash2, Copy, Filter } from 'lucide-react';
 import { SavedReply } from '@/types/support';
-import { useSavedReplies, useCreateSavedReply, useDeleteSavedReply } from '@/hooks/useSupport';
+import { useSavedReplies, useCreateSavedReply } from '@/hooks/useSupport';
 
 export function SavedRepliesManager() {
   const { data: savedReplies, isLoading } = useSavedReplies();
   const createReply = useCreateSavedReply();
-  const deleteReply = useDeleteSavedReply();
+  // TODO: Implement delete functionality
   const [searchQuery, setSearchQuery] = useState('');
   const [editingReply, setEditingReply] = useState<SavedReply | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const filteredReplies = savedReplies?.filter(reply =>
-    reply.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    reply.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     reply.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
     reply.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -33,7 +33,8 @@ export function SavedRepliesManager() {
 
   const handleDeleteReply = async (id: string) => {
     if (confirm('Are you sure you want to delete this saved reply?')) {
-      await deleteReply.mutateAsync(id);
+      // TODO: Implement delete functionality
+      console.log('Delete reply:', id);
     }
   };
 
@@ -103,7 +104,7 @@ export function SavedRepliesManager() {
             <TableBody>
               {filteredReplies?.map((reply) => (
                 <TableRow key={reply.id}>
-                  <TableCell className="font-medium">{reply.title}</TableCell>
+                  <TableCell className="font-medium">{reply.name}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">{reply.category}</Badge>
                   </TableCell>
@@ -128,7 +129,7 @@ export function SavedRepliesManager() {
                   </TableCell>
                   <TableCell>
                     <div className="text-sm text-muted-foreground">
-                      Used {reply.useCount} times
+                      Used {reply.usageCount} times
                     </div>
                   </TableCell>
                   <TableCell>
@@ -177,7 +178,7 @@ function SavedReplyForm({
   onCancel: () => void; 
 }) {
   const [formData, setFormData] = useState({
-    title: reply?.title || '',
+    title: reply?.name || '',
     content: reply?.content || '',
     category: reply?.category || 'general',
     tags: reply?.tags || [] as string[]

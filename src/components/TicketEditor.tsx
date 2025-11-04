@@ -30,7 +30,7 @@ export function TicketEditor({ note, savedReplies, onSave, onCancel, mode }: Tic
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const filteredReplies = savedReplies.filter(reply =>
-    reply.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    reply.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     reply.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
     reply.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -111,7 +111,7 @@ export function TicketEditor({ note, savedReplies, onSave, onCancel, mode }: Tic
                     name="visibility"
                     checked={!formData.isInternal}
                     onChange={() => setFormData(prev => ({ ...prev, isInternal: false }))}
-                    className="text-blue-600"
+                    className="text-blue-600 dark:text-blue-400"
                   />
                   <span>Customer-facing</span>
                 </label>
@@ -121,7 +121,7 @@ export function TicketEditor({ note, savedReplies, onSave, onCancel, mode }: Tic
                     name="visibility"
                     checked={formData.isInternal}
                     onChange={() => setFormData(prev => ({ ...prev, isInternal: true }))}
-                    className="text-blue-600"
+                    className="text-blue-600 dark:text-blue-400"
                   />
                   <span>Internal</span>
                 </label>
@@ -170,7 +170,7 @@ export function TicketEditor({ note, savedReplies, onSave, onCancel, mode }: Tic
                       onClick={() => handleUseSavedReply(reply)}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <div className="font-medium">{reply.title}</div>
+                        <div className="font-medium">{reply.name}</div>
                         <Badge variant="secondary">{reply.category}</Badge>
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2">

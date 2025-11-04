@@ -2,7 +2,8 @@ import React from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Contract, User } from '@/lib/types/contracts'
+import { Contract } from '@/lib/types/contracts'
+import { User } from '@/types/users'
 import { History, Eye, GitCompare } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -55,13 +56,13 @@ export function DocumentVersionHistory({
                   <div>
                     <h4 className="font-medium">Version {version.version}</h4>
                     <p className="text-sm text-muted-foreground">
-                      By {version.createdBy.name} • {format(version.createdAt, 'MMM dd, yyyy HH:mm')}
+                      By {version.createdBy.firstName} {version.createdBy.lastName} • {format(version.createdAt, 'MMM dd, yyyy HH:mm')}
                     </p>
                   </div>
                   
                   <div className="flex items-center gap-2">
                     {index === 0 && (
-                      <Badge variant="success">Current</Badge>
+                      <Badge variant="default">Current</Badge>
                     )}
                     
                     <Button

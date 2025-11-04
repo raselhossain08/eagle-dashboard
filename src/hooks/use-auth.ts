@@ -9,7 +9,7 @@ import { SecurityMonitorService } from '@/lib/auth/security-monitor.service';
 import { useAuthStore } from '@/store/auth-store';
 
 // Auth Service instance
-const authService = new AuthService(new ApiClient());
+const authService = new AuthService();
 
 export const useLogin = () => {
   const queryClient = useQueryClient();
@@ -73,7 +73,7 @@ export const useLogin = () => {
             type: 'suspicious_login',
             message: `Suspicious login detected: ${suspiciousCheck.reasons.join(', ')}`,
             timestamp: new Date(),
-            severity: 'high'
+            resolved: false
           });
         }
       }

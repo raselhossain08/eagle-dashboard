@@ -1,17 +1,19 @@
-// app/dashboard/support/impersonation/active/page.tsx - ❌ MISSING
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Clock, AlertTriangle, Square, MoreHorizontal } from 'lucide-react';
-import { useActiveImpersonations, useEndImpersonation } from '@/hooks/useSupport';
+import { Users, Clock, AlertTriangle, Square, MoreHorizontal, ArrowLeft } from 'lucide-react';
+import { useActiveImpersonations, useEndImpersonation, useForceEndImpersonation } from '@/hooks/useSupport';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import Link from 'next/link';
+import { toast } from 'sonner';
 
 export default function ActiveImpersonationsPage() {
-  const { data: activeSessions, isLoading } = useActiveImpersonations();
+  const { data: activeSessions, isLoading, error } = useActiveImpersonations();
   const endImpersonation = useEndImpersonation();
+  const forceEndImpersonation = useForceEndImpersonation();
 
   const getSessionDuration = (startedAt: string) => {
     const start = new Date(startedAt);
@@ -27,17 +29,41 @@ export default function ActiveImpersonationsPage() {
   };
 
   const handleEndSession = async (sessionId: string) => {
-    await endImpersonation.mutateAsync({ logId: sessionId, reason: 'Manual termination' });
+    try {
+      await endImpersonation.mutateAsync({ logId: sessionId, reason: 'Manual termination' });
+      toast.success('Impersonation session ended successfully');
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      toast.error('Failed to end impersonation session');
+    }
+  };
+
+  const handleForceEndSession = async (sessionId: string) => {
+    try {
+      await forceEndImpersonation.mutateAsync({ logId: sessionId, reason: 'Forced termination by admin' });
+      toast.success('Impersonation session force-ended successfully');
+    } catch (error) {
+      console.error('Failed to force end session:', error);
+      toast.error('Failed to force end impersonation session');
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Active Impersonation Sessions</h1>
-          <p className="text-muted-foreground">
-            Monitor and manage currently active user impersonation sessions
-          </p>
+        <div className="flex items-center space-x-4">
+          <Link href="/dashboard/support/impersonation">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Active Impersonation Sessions</h1>
+            <p className="text-muted-foreground">
+              Monitor and manage currently active user impersonation sessions
+            </p>
+          </div>
         </div>
       </div>
 
@@ -66,6 +92,14 @@ export default function ActiveImpersonationsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-destructive opacity-50" />
+              <h3 className="text-lg font-medium mb-2">Failed to Load Sessions</h3>
+              <p className="text-muted-foreground">
+                Unable to load active impersonation sessions. Please try again.
+              </p>
             </div>
           ) : !activeSessions || activeSessions.length === 0 ? (
             <div className="text-center py-12">
@@ -138,11 +172,18 @@ export default function ActiveImpersonationsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEndSession(session.id)}>
+                          <DropdownMenuItem 
+                            onClick={() => handleEndSession(session.id)}
+                            disabled={endImpersonation.isPending}
+                          >
                             <Square className="w-4 h-4 mr-2" />
                             End Session
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive">
+                          <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={() => handleForceEndSession(session.id)}
+                            disabled={forceEndImpersonation.isPending}
+                          >
                             <AlertTriangle className="w-4 h-4 mr-2" />
                             Force End
                           </DropdownMenuItem>

@@ -1,5 +1,6 @@
 // lib/api/users.ts
 import { User, UsersResponse, CreateUserDto, UpdateUserDto } from '@/types/users';
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
 
 export class UsersService {
   // Default to backend configuration used by eagle-backend (port 5000, apiPrefix /api/v1)
@@ -7,7 +8,7 @@ export class UsersService {
   private static baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   private static getAuthHeaders() {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    const token = TokenStorageService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -40,12 +41,13 @@ export class UsersService {
     const data = await response.json();
     
     // Transform backend response to match frontend interface
+    // Handle both possible response structures
     return {
-      users: data.data || [],
-      totalCount: data.meta?.total || 0,
-      page: data.meta?.page || 1,
-      pageSize: data.meta?.limit || 10,
-      totalPages: data.meta?.totalPages || 0,
+      users: data.users || data.data || [],
+      totalCount: data.total || data.meta?.total || 0,
+      page: data.page || data.meta?.page || 1,
+      pageSize: data.pageSize || data.meta?.limit || 10,
+      totalPages: data.totalPages || data.meta?.totalPages || 0,
     };
   }
 

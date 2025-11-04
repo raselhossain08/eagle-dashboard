@@ -6,41 +6,86 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
-import { Download, TrendingUp, Users, Clock, Star, Target, Award, AlertCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { supportService } from '@/lib/api/support';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { DatePickerWithRange } from '@/components/ui/date-picker';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { 
+  Download, 
+  TrendingUp, 
+  Users, 
+  Clock, 
+  Star, 
+  Target, 
+  Award, 
+  AlertCircle, 
+  RefreshCw, 
+  Filter,
+  Search,
+  Calendar,
+  Activity,
+  ChevronUp,
+  ChevronDown,
+  Eye,
+  EyeOff
+} from 'lucide-react';
+import { useState } from 'react';
+import { DateRange } from 'react-day-picker';
+import { addDays, startOfDay, endOfDay } from 'date-fns';
+import { 
+  useSupportDashboard, 
+  useGenerateReport,
+  useTeamPerformance,
+  useSupportStats
+} from '@/hooks/use-support-analytics';
+import { TeamAgent, TeamPerformanceSummary } from '@/types/support';
 import { toast } from 'sonner';
 
 export default function TeamPerformancePage() {
-  const [teamData, setTeamData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  // State for filters and controls
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: addDays(new Date(), -30),
+    to: new Date(),
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [performanceFilter, setPerformanceFilter] = useState<'all' | 'excellent' | 'good' | 'needs-review'>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'productivity' | 'satisfaction' | 'totalTickets' | 'avgResponseTime'>('productivity');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    fetchTeamPerformance();
-  }, []);
+  // Convert date range to API format
+  const startDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : undefined;
+  const endDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : undefined;
 
-  const fetchTeamPerformance = async () => {
-    try {
-      setLoading(true);
-      const endDate = new Date().toISOString();
-      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      
-      const data = await supportService.getTeamPerformance({ startDate, endDate });
-      setTeamData(data);
-    } catch (error) {
-      console.error('Failed to fetch team performance:', error);
-      toast.error('Failed to load team performance data');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch data using comprehensive hooks
+  const {
+    teamPerformance,
+    supportStats,
+    isLoading,
+    isError,
+    error,
+    refetchAll
+  } = useSupportDashboard(startDate, endDate, {
+    enabled: true,
+    autoRefresh,
+    refetchInterval: autoRefresh ? 5 * 60 * 1000 : undefined, // 5 minutes
+  });
+
+  // Generate report mutation
+  const generateReport = useGenerateReport();
 
   const handleExportReport = async () => {
     try {
-      const endDate = new Date().toISOString();
-      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      
-      const report = await supportService.generateReport('team-performance', { startDate, endDate });
+      const report = await generateReport.mutateAsync({
+        type: 'team-performance',
+        startDate,
+        endDate,
+      });
       
       // Create and download the report
       const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
@@ -60,7 +105,58 @@ export default function TeamPerformancePage() {
     }
   };
 
-  if (loading) {
+  const handleRefresh = async () => {
+    try {
+      await refetchAll();
+      toast.success('Team performance data refreshed');
+    } catch (error) {
+      toast.error('Failed to refresh data');
+    }
+  };
+
+  // Filter and sort team data
+  const teamData = teamPerformance.data?.teamPerformance || [];
+  const summaryData = teamPerformance.data?.summary;
+  
+  const filteredAndSortedTeam = teamData.filter((agent: TeamAgent) => {
+    // Search filter
+    if (searchQuery && !agent.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
+        !agent.email.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+
+    // Performance filter
+    switch (performanceFilter) {
+      case 'excellent':
+        return agent.productivity >= 90;
+      case 'good':
+        return agent.productivity >= 80 && agent.productivity < 90;
+      case 'needs-review':
+        return agent.productivity < 80;
+      default:
+        return true;
+    }
+  }).sort((a: TeamAgent, b: TeamAgent) => {
+    const aValue = a[sortBy as keyof TeamAgent];
+    const bValue = b[sortBy as keyof TeamAgent];
+    
+    if (sortOrder === 'desc') {
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return bValue.localeCompare(aValue);
+      } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return bValue - aValue;
+      }
+    } else {
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return aValue.localeCompare(bValue);
+      } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return aValue - bValue;
+      }
+    }
+    return 0;
+  });
+
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-center h-64">
@@ -70,7 +166,7 @@ export default function TeamPerformancePage() {
     );
   }
 
-  if (!teamData) {
+  if (isError || !teamPerformance.data) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-center h-64">
@@ -83,7 +179,7 @@ export default function TeamPerformancePage() {
     );
   }
 
-  const { teamPerformance, summary } = teamData;
+  // Data is already extracted above as teamData and summaryData
 
   return (
     <div className="space-y-6">
@@ -94,11 +190,138 @@ export default function TeamPerformancePage() {
             Detailed analytics and metrics for support team members
           </p>
         </div>
-        <Button variant="outline" onClick={handleExportReport}>
-          <Download className="w-4 h-4 mr-2" />
-          Export Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button variant="outline" onClick={handleExportReport} disabled={generateReport.isPending}>
+            <Download className="w-4 h-4 mr-2" />
+            {generateReport.isPending ? 'Exporting...' : 'Export Report'}
+          </Button>
+        </div>
       </div>
+
+      {/* Advanced Filters and Controls */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <CardTitle>Filters & Controls</CardTitle>
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="auto-refresh" 
+                  checked={autoRefresh}
+                  onCheckedChange={setAutoRefresh}
+                />
+                <Label htmlFor="auto-refresh">Auto Refresh</Label>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              {showFilters ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+              {showFilters ? 'Hide' : 'Show'} Filters
+            </Button>
+          </div>
+        </CardHeader>
+        
+        {showFilters && (
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {/* Date Range Filter */}
+              <div className="space-y-2">
+                <Label>Date Range</Label>
+                <DatePickerWithRange
+                  dateRange={dateRange}
+                  onDateRangeChange={setDateRange}
+                  placeholder="Select date range"
+                />
+              </div>
+
+              {/* Search Filter */}
+              <div className="space-y-2">
+                <Label>Search Agents</Label>
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+              </div>
+
+              {/* Performance Filter */}
+              <div className="space-y-2">
+                <Label>Performance Level</Label>
+                <Select value={performanceFilter} onValueChange={(value: any) => setPerformanceFilter(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All performance levels" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Levels</SelectItem>
+                    <SelectItem value="excellent">Excellent (90%+)</SelectItem>
+                    <SelectItem value="good">Good (80-89%)</SelectItem>
+                    <SelectItem value="needs-review">Needs Review (&lt;80%)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Sort Options */}
+              <div className="space-y-2">
+                <Label>Sort By</Label>
+                <div className="flex gap-2">
+                  <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="name">Name</SelectItem>
+                      <SelectItem value="productivity">Productivity</SelectItem>
+                      <SelectItem value="satisfaction">Satisfaction</SelectItem>
+                      <SelectItem value="totalTickets">Total Tickets</SelectItem>
+                      <SelectItem value="avgResponseTime">Response Time</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  >
+                    {sortOrder === 'desc' ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Filter Results Summary */}
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                Showing {filteredAndSortedTeam.length} of {teamData.length} agents
+                {searchQuery && ` matching "${searchQuery}"`}
+              </span>
+              {(searchQuery || performanceFilter !== 'all') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setPerformanceFilter('all');
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -107,22 +330,22 @@ export default function TeamPerformancePage() {
             <Target className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{Math.round(summary.avgProductivity)}%</div>
+            <div className="text-2xl font-bold">{Math.round(summaryData?.avgProductivity || 0)}%</div>
             <div className="flex items-center space-x-1 text-xs text-green-600">
               <TrendingUp className="w-3 h-3" />
               <span>Team average</span>
             </div>
-            <Progress value={summary.avgProductivity} className="mt-2" />
+            <Progress value={summaryData?.avgProductivity || 0} className="mt-2" />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Satisfaction</CardTitle>
+            <CardTitle className="text-sm font-medium">Customer Satisfaction</CardTitle>
             <Star className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary.avgSatisfaction.toFixed(1)}/5</div>
+            <div className="text-2xl font-bold">{(summaryData?.avgSatisfaction || 0).toFixed(1)}/5</div>
             <p className="text-xs text-muted-foreground">
               Team average rating
             </p>
@@ -131,7 +354,7 @@ export default function TeamPerformancePage() {
                 <Star
                   key={star}
                   className={`w-3 h-3 ${
-                    star <= Math.round(summary.avgSatisfaction)
+                    star <= Math.round(summaryData?.avgSatisfaction || 0)
                       ? 'text-yellow-500 fill-yellow-500'
                       : 'text-gray-300'
                   }`}
@@ -147,7 +370,7 @@ export default function TeamPerformancePage() {
             <Award className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary.totalTicketsHandled}</div>
+            <div className="text-2xl font-bold">{summaryData?.totalTicketsHandled || 0}</div>
             <div className="flex items-center space-x-1 text-xs text-green-600">
               <TrendingUp className="w-3 h-3" />
               <span>Last 30 days</span>
@@ -161,7 +384,7 @@ export default function TeamPerformancePage() {
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary.totalAgents}</div>
+            <div className="text-2xl font-bold">{summaryData?.totalAgents || 0}</div>
             <p className="text-xs text-muted-foreground">
               Team members with activity
             </p>
@@ -200,7 +423,7 @@ export default function TeamPerformancePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {teamPerformance.map((agent: any) => (
+                  {filteredAndSortedTeam.map((agent: TeamAgent) => (
                     <TableRow key={agent._id}>
                       <TableCell className="font-medium">{agent.name}</TableCell>
                       <TableCell>{agent.role}</TableCell>
@@ -263,7 +486,7 @@ export default function TeamPerformancePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {teamPerformance.map((agent: any) => (
+                {filteredAndSortedTeam.map((agent: TeamAgent) => (
                   <Card key={agent._id}>
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2">
@@ -308,9 +531,9 @@ export default function TeamPerformancePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {teamPerformance
-                  .filter((agent: any) => agent.productivity < 80 || agent.avgResponseTime > 30)
-                  .map((agent: any) => (
+                {teamData
+                  .filter((agent: TeamAgent) => agent.productivity < 80 || agent.avgResponseTime > 30)
+                  .map((agent: TeamAgent) => (
                   <div key={agent._id} className="p-4 border rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <div>
@@ -333,7 +556,7 @@ export default function TeamPerformancePage() {
                   </div>
                 ))}
                 
-                {teamPerformance.every((agent: any) => agent.productivity >= 80 && agent.avgResponseTime <= 30) && (
+                {teamData.every((agent: TeamAgent) => agent.productivity >= 80 && agent.avgResponseTime <= 30) && (
                   <div className="text-center py-8">
                     <Award className="h-12 w-12 text-green-500 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-green-600">Excellent Team Performance!</h3>
@@ -362,7 +585,7 @@ export default function TeamPerformancePage() {
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-bold">
-                      {Math.round(teamPerformance.reduce((sum: number, agent: any) => sum + agent.resolutionRate, 0) / teamPerformance.length)}%
+                      {Math.round(teamData.reduce((sum: number, agent: TeamAgent) => sum + agent.resolutionRate, 0) / teamData.length)}%
                     </div>
                     <Badge variant="default">On Target</Badge>
                   </div>
@@ -374,9 +597,9 @@ export default function TeamPerformancePage() {
                     <p className="text-sm text-muted-foreground">Target: 4.5/5</p>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold">{summary.avgSatisfaction.toFixed(1)}/5</div>
-                    <Badge variant={summary.avgSatisfaction >= 4.5 ? 'default' : 'destructive'}>
-                      {summary.avgSatisfaction >= 4.5 ? 'On Target' : 'Below Target'}
+                    <div className="text-2xl font-bold">{(summaryData?.avgSatisfaction || 0).toFixed(1)}/5</div>
+                    <Badge variant={(summaryData?.avgSatisfaction || 0) >= 4.5 ? 'default' : 'destructive'}>
+                      {(summaryData?.avgSatisfaction || 0) >= 4.5 ? 'On Target' : 'Below Target'}
                     </Badge>
                   </div>
                 </div>
@@ -388,7 +611,7 @@ export default function TeamPerformancePage() {
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-bold">
-                      {Math.round(teamPerformance.reduce((sum: number, agent: any) => sum + agent.avgResponseTime, 0) / teamPerformance.length)}m
+                      {Math.round(teamData.reduce((sum: number, agent: TeamAgent) => sum + agent.avgResponseTime, 0) / teamData.length)}m
                     </div>
                     <Badge variant="default">Good</Badge>
                   </div>

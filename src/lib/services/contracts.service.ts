@@ -1,11 +1,11 @@
 import { 
   Contract, 
-  ContractsResponse, 
+  PaginatedContracts, 
   CreateContractDto, 
   ContractsQueryParams, 
   ContractMetrics,
   DateRange,
-  SigningAnalytics
+  SignatureAnalytics
 } from '@/lib/types/contracts'
 
 export class ContractsService {
@@ -13,17 +13,15 @@ export class ContractsService {
 
   constructor() {}
 
-  async getContracts(params: ContractsQueryParams): Promise<ContractsResponse> {
+  async getContracts(params: ContractsQueryParams): Promise<PaginatedContracts> {
     const queryParams = new URLSearchParams()
     
     if (params.page) queryParams.append('page', params.page.toString())
     if (params.limit) queryParams.append('limit', params.limit.toString())
-    if (params.status) queryParams.append('status', params.status.join(','))
-    if (params.customerId) queryParams.append('customerId', params.customerId)
+    if (params.status) queryParams.append('status', params.status)
+    if (params.userId) queryParams.append('userId', params.userId)
     if (params.templateId) queryParams.append('templateId', params.templateId)
     if (params.search) queryParams.append('search', params.search)
-    if (params.sortBy) queryParams.append('sortBy', params.sortBy)
-    if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder)
 
     const response = await fetch(`${this.baseUrl}?${queryParams}`)
     
@@ -115,7 +113,7 @@ export class ContractsService {
     return response.json()
   }
 
-  async getSigningAnalytics(dateRange: DateRange): Promise<SigningAnalytics> {
+  async getSigningAnalytics(dateRange: DateRange): Promise<SignatureAnalytics> {
     const queryParams = new URLSearchParams({
       from: dateRange.from.toISOString(),
       to: dateRange.to.toISOString(),

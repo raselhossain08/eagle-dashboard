@@ -16,6 +16,29 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, X, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { getCampaignValidationErrors } from '@/lib/validations/campaign.validation';
+
+// Form state interface with Date objects for UI handling
+interface CampaignFormState {
+  name: string;
+  description?: string;
+  type?: 'promotional' | 'affiliate' | 'referral' | 'loyalty' | 'winback';
+  startDate?: Date;
+  endDate?: Date;
+  isActive?: boolean;
+  discountIds?: string[];
+  channels?: string[];
+  targetAudience?: string[];
+  targetCountries?: string[];
+  budget?: number;
+  revenueGoal?: number;
+  conversionGoal?: number;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+}
 
 interface Discount {
   id: string;
@@ -30,6 +53,8 @@ interface CampaignFormProps {
   onCancel: () => void;
   isLoading?: boolean;
   mode: 'create' | 'edit';
+  formErrors?: Record<string, string>;
+  isRefreshing?: boolean;
 }
 
 export function CampaignForm({
@@ -38,14 +63,16 @@ export function CampaignForm({
   onSubmit,
   onCancel,
   isLoading = false,
-  mode
+  mode,
+  formErrors = {},
+  isRefreshing = false
 }: CampaignFormProps) {
-  const [formData, setFormData] = useState<Partial<CreateCampaignDto>>({
+  const [formData, setFormData] = useState<CampaignFormState>({
     name: campaign?.name || '',
     description: campaign?.description || '',
     type: campaign?.type || 'promotional',
-    startDate: campaign?.startDate || new Date(),
-    endDate: campaign?.endDate,
+    startDate: campaign?.startDate ? (typeof campaign.startDate === 'string' ? new Date(campaign.startDate) : campaign.startDate) : new Date(),
+    endDate: campaign?.endDate ? (typeof campaign.endDate === 'string' ? new Date(campaign.endDate) : campaign.endDate) : undefined,
     isActive: campaign?.isActive ?? true,
     discountIds: campaign?.discountIds || [],
     channels: campaign?.channels || [],
@@ -58,13 +85,73 @@ export function CampaignForm({
 
   const [selectedDiscounts, setSelectedDiscounts] = useState<string[]>(formData.discountIds || []);
   const [newChannel, setNewChannel] = useState('');
+  const [realTimeErrors, setRealTimeErrors] = useState<Record<string, string>>({});
+  const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Real-time validation
+  const validateField = (name: string, value: any) => {
+    const testData = { ...formData, [name]: value };
+    const validationErrors = getCampaignValidationErrors(testData);
+    
+    setRealTimeErrors(prev => {
+      const newErrors = { ...prev };
+      if (validationErrors[name]) {
+        newErrors[name] = validationErrors[name];
+      } else {
+        delete newErrors[name];
+      }
+      return newErrors;
+    });
+  };
+
+  // Merge form errors with real-time errors and server errors
+  const allErrors = { ...formErrors, ...realTimeErrors, ...serverErrors };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({
+    
+    // Validate all fields before submission
+    const submitData = {
       ...formData,
-      discountIds: selectedDiscounts
-    } as CreateCampaignDto);
+      discountIds: selectedDiscounts,
+      // Convert dates to ISO strings for backend
+      startDate: formData.startDate ? formData.startDate.toISOString() : new Date().toISOString(),
+      endDate: formData.endDate ? formData.endDate.toISOString() : undefined
+    };
+    
+    // Final validation
+    const validationErrors = getCampaignValidationErrors(submitData);
+    if (Object.keys(validationErrors).length > 0) {
+      setRealTimeErrors(validationErrors);
+      return;
+    }
+    
+    // Clear any previous server errors
+    setServerErrors({});
+    
+    try {
+      await onSubmit(submitData as CreateCampaignDto);
+    } catch (error: any) {
+      // Handle server validation errors
+      if (error?.response?.data?.errors) {
+        const backendErrors = error.response.data.errors;
+        if (Array.isArray(backendErrors)) {
+          // Convert array of error messages to field-specific errors
+          const errorMap: Record<string, string> = {};
+          backendErrors.forEach((err: any) => {
+            if (typeof err === 'string') {
+              errorMap['general'] = err;
+            } else if (err.field && err.message) {
+              errorMap[err.field] = err.message;
+            }
+          });
+          setServerErrors(errorMap);
+        } else if (typeof backendErrors === 'object') {
+          setServerErrors(backendErrors);
+        }
+      }
+      // Don't re-throw, let parent handle the error display
+    }
   };
 
   const addChannel = () => {
@@ -94,6 +181,15 @@ export function CampaignForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* General Error Display */}
+      {allErrors.general && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+          <p className="text-sm text-destructive font-medium">
+            {allErrors.general}
+          </p>
+        </div>
+      )}
+      
       <Card>
         <CardHeader>
           <CardTitle>Campaign Details</CardTitle>
@@ -107,10 +203,18 @@ export function CampaignForm({
             <Input
               id="name"
               value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => {
+                const value = e.target.value;
+                setFormData(prev => ({ ...prev, name: value }));
+                validateField('name', value);
+              }}
               placeholder="Summer Sale 2024"
               required
+              className={allErrors.name ? 'border-destructive' : ''}
             />
+            {allErrors.name && (
+              <p className="text-sm text-destructive">{allErrors.name}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -128,10 +232,13 @@ export function CampaignForm({
               <Label htmlFor="type">Campaign Type *</Label>
               <Select
                 value={formData.type}
-                onValueChange={(value: any) => setFormData(prev => ({ ...prev, type: value }))}
+                onValueChange={(value: any) => {
+                  setFormData(prev => ({ ...prev, type: value }));
+                  validateField('type', value);
+                }}
               >
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className={allErrors.type ? 'border-destructive' : ''}>
+                  <SelectValue placeholder="Select campaign type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="promotional">Promotional</SelectItem>
@@ -141,6 +248,9 @@ export function CampaignForm({
                   <SelectItem value="winback">Winback</SelectItem>
                 </SelectContent>
               </Select>
+              {allErrors.type && (
+                <p className="text-sm text-destructive">{allErrors.type}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -318,11 +428,23 @@ export function CampaignForm({
       </div>
 
       <div className="flex justify-end space-x-2">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button 
+          type="button" 
+          variant="outline" 
+          onClick={onCancel}
+          disabled={isLoading || isRefreshing}
+        >
           Cancel
         </Button>
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Creating...' : mode === 'create' ? 'Create Campaign' : 'Update Campaign'}
+        <Button 
+          type="submit" 
+          disabled={isLoading || isRefreshing}
+          className="min-w-32"
+        >
+          {isLoading 
+            ? (mode === 'create' ? 'Creating...' : 'Updating...') 
+            : (mode === 'create' ? 'Create Campaign' : 'Update Campaign')
+          }
         </Button>
       </div>
     </form>

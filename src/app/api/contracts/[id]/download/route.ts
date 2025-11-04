@@ -3,10 +3,11 @@ import { API_BASE_URL } from '@/lib/config'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const contractId = params.id
+    const resolvedParams = await params
+    const contractId = resolvedParams.id
 
     // Forward the request to the backend API
     const response = await fetch(`${API_BASE_URL}/contracts/${contractId}/download`, {

@@ -3,7 +3,8 @@ import { apiClient } from './api-client';
 import { Campaign, CreateCampaignDto } from '@/types/discounts';
 
 export interface CampaignsResponse {
-  campaigns: Campaign[];
+  data?: Campaign[];
+  campaigns?: Campaign[];  // Backend might return either format
   total: number;
   page: number;
   totalPages: number;
@@ -33,7 +34,7 @@ export interface CampaignsOverviewResponse {
 }
 
 export class CampaignsService {
-  private baseUrl = '/api/discounts/campaigns';
+  private baseUrl = '/discounts/campaigns';
 
   async getCampaigns(params: {
     page?: number;

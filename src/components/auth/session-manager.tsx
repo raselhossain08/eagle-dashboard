@@ -95,7 +95,7 @@ export function SessionManager({
         const { AuthService } = await import('@/lib/services/auth.service');
         const { ApiClient } = await import('@/lib/api/api-client');
         
-        const authService = new AuthService(new ApiClient());
+        const authService = new AuthService();
         const tokens = await authService.refreshToken(refreshToken);
         TokenStorageService.setTokens(tokens.accessToken, tokens.refreshToken);
         setShowWarning(false);

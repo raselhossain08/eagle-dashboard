@@ -6,11 +6,25 @@ import { DateRangePicker } from '@/components/reports/DateRangePicker';
 import { ExportControls } from '@/components/reports/ExportControls';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/reports/DataTable';
-import { useUserActivityReport, useUserAcquisitionReport, useUserRetentionReport } from '@/hooks/useReports';
+import { useUserActivityReport, useUserAcquisitionReport, useUserRetentionReport, useExportUserReport } from '@/hooks/useReports';
 import { addDays, format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
+import { LoadingSpinner } from '@/components/loading-spinner';
+
+import { UserReportsErrorBoundary } from './error-boundary';
 
 export default function UserReportsPage() {
+  return (
+    <UserReportsErrorBoundary>
+      <UserReportsContent />
+    </UserReportsErrorBoundary>
+  );
+}
+
+function UserReportsContent() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -30),
     to: new Date(),
@@ -23,15 +37,56 @@ export default function UserReportsPage() {
     metrics: ['activeUsers', 'sessions', 'engagementRate'],
   };
 
-  const { data: activityData, isLoading: activityLoading } = useUserActivityReport(reportParams);
-  const { data: acquisitionData, isLoading: acquisitionLoading } = useUserAcquisitionReport(reportParams);
-  const { data: retentionData, isLoading: retentionLoading } = useUserRetentionReport({
+  const { 
+    data: activityData, 
+    isLoading: activityLoading,
+    error: activityError,
+    refetch: refetchActivity 
+  } = useUserActivityReport(reportParams);
+  
+  const { 
+    data: acquisitionData, 
+    isLoading: acquisitionLoading,
+    error: acquisitionError,
+    refetch: refetchAcquisition 
+  } = useUserAcquisitionReport(reportParams);
+  
+  const { 
+    data: retentionData, 
+    isLoading: retentionLoading,
+    error: retentionError,
+    refetch: refetchRetention 
+  } = useUserRetentionReport({
     ...reportParams,
     cohortType: 'monthly'
   });
 
-  const handleExport = (format: any) => {
-    console.log('Exporting user report:', format, activeTab);
+  const exportMutation = useExportUserReport();
+
+  const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
+    try {
+      await exportMutation.mutateAsync({
+        reportType: activeTab as 'activity' | 'acquisition' | 'retention',
+        params: reportParams,
+        format
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
+
+  const handleRefresh = () => {
+    switch (activeTab) {
+      case 'activity':
+        refetchActivity();
+        break;
+      case 'acquisition':
+        refetchAcquisition();
+        break;
+      case 'retention':
+        refetchRetention();
+        break;
+    }
   };
 
   // Activity table columns
@@ -69,32 +124,93 @@ export default function UserReportsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={activityLoading || acquisitionLoading || retentionLoading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${
+              (activityLoading || acquisitionLoading || retentionLoading) ? 'animate-spin' : ''
+            }`} />
+            Refresh
+          </Button>
           <DateRangePicker value={dateRange} onChange={setDateRange} />
           <ExportControls onExport={handleExport} />
         </div>
       </div>
 
+      {/* Real-time Data Status */}
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full" />
+          <span>Live Data</span>
+        </div>
+        <span>•</span>
+        <span>Auto-refresh: 5min</span>
+        <span>•</span>
+        <span>Period: {dateRange?.from && dateRange?.to ? 
+          `${format(dateRange.from, 'MMM dd, yyyy')} - ${format(dateRange.to, 'MMM dd, yyyy')}` : 
+          'Last 30 days'
+        }</span>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="acquisition">Acquisition</TabsTrigger>
-          <TabsTrigger value="retention">Retention</TabsTrigger>
+          <TabsTrigger value="activity">
+            Activity
+            {activityError && <AlertTriangle className="w-3 h-3 ml-1 text-red-500" />}
+          </TabsTrigger>
+          <TabsTrigger value="acquisition">
+            Acquisition
+            {acquisitionError && <AlertTriangle className="w-3 h-3 ml-1 text-red-500" />}
+          </TabsTrigger>
+          <TabsTrigger value="retention">
+            Retention
+            {retentionError && <AlertTriangle className="w-3 h-3 ml-1 text-red-500" />}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="activity" className="space-y-6">
+          {activityError && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Failed to load activity data: {activityError.message}
+                <Button 
+                  variant="link" 
+                  className="p-0 h-auto ml-2"
+                  onClick={() => refetchActivity()}
+                >
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium">Active Users</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {activityLoading ? '...' : activityData?.length ? 
-                    Math.round(activityData.reduce((sum: number, item: any) => sum + (item.activeUsers || 0), 0) / activityData.length).toLocaleString() : '0'}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Daily average
-                </p>
+                {activityLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <LoadingSpinner size="sm" />
+                  </div>
+                ) : activityError ? (
+                  <div className="text-xl font-bold text-muted-foreground">--</div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {activityData?.length ? 
+                        Math.round(activityData.reduce((sum: number, item: any) => sum + (item.activeUsers || 0), 0) / activityData.length).toLocaleString() : '0'}
+                    </div>
+                    <div className="flex items-center text-xs text-muted-foreground">
+                      <TrendingUp className="w-3 h-3 mr-1 text-green-500" />
+                      Daily average
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
             
@@ -103,12 +219,23 @@ export default function UserReportsPage() {
                 <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {activityLoading ? '...' : activityData?.reduce((sum: number, item: any) => sum + (item.sessions || 0), 0).toLocaleString() || '0'}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  This period
-                </p>
+                {activityLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <LoadingSpinner size="sm" />
+                  </div>
+                ) : activityError ? (
+                  <div className="text-xl font-bold text-muted-foreground">--</div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {activityData?.reduce((sum: number, item: any) => sum + (item.sessions || 0), 0).toLocaleString() || '0'}
+                    </div>
+                    <div className="flex items-center text-xs text-muted-foreground">
+                      <TrendingUp className="w-3 h-3 mr-1 text-blue-500" />
+                      This period
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
             
@@ -117,13 +244,24 @@ export default function UserReportsPage() {
                 <CardTitle className="text-sm font-medium">Engagement Rate</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {activityLoading ? '...' : activityData?.length ? 
-                    (activityData.reduce((sum: number, item: any) => sum + (item.engagementRate || 0), 0) / activityData.length).toFixed(1) : '0'}%
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Average rate
-                </p>
+                {activityLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <LoadingSpinner size="sm" />
+                  </div>
+                ) : activityError ? (
+                  <div className="text-xl font-bold text-muted-foreground">--</div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {activityData?.length ? 
+                        (activityData.reduce((sum: number, item: any) => sum + (item.engagementRate || 0), 0) / activityData.length).toFixed(1) : '0'}%
+                    </div>
+                    <div className="flex items-center text-xs text-muted-foreground">
+                      <TrendingUp className="w-3 h-3 mr-1 text-purple-500" />
+                      Average rate
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -156,18 +294,45 @@ export default function UserReportsPage() {
         </TabsContent>
 
         <TabsContent value="acquisition" className="space-y-6">
+          {acquisitionError && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Failed to load acquisition data: {acquisitionError.message}
+                <Button 
+                  variant="link" 
+                  className="p-0 h-auto ml-2"
+                  onClick={() => refetchAcquisition()}
+                >
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium">Total Acquired</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {acquisitionLoading ? '...' : acquisitionData?.reduce((sum: number, item: any) => sum + (item.users || 0), 0).toLocaleString() || '0'}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  New users
-                </p>
+                {acquisitionLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <LoadingSpinner size="sm" />
+                  </div>
+                ) : acquisitionError ? (
+                  <div className="text-xl font-bold text-muted-foreground">--</div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {acquisitionData?.reduce((sum: number, item: any) => sum + (item.users || 0), 0).toLocaleString() || '0'}
+                    </div>
+                    <div className="flex items-center text-xs text-muted-foreground">
+                      <TrendingUp className="w-3 h-3 mr-1 text-green-500" />
+                      New users
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -244,19 +409,46 @@ export default function UserReportsPage() {
         </TabsContent>
 
         <TabsContent value="retention" className="space-y-6">
+          {retentionError && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Failed to load retention data: {retentionError.message}
+                <Button 
+                  variant="link" 
+                  className="p-0 h-auto ml-2"
+                  onClick={() => refetchRetention()}
+                >
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium">Week 1 Retention</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {retentionLoading ? '...' : retentionData?.metrics ? 
-                    `${retentionData.metrics.avgRetention1Week.toFixed(1)}%` : '0%'}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Average
-                </p>
+                {retentionLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <LoadingSpinner size="sm" />
+                  </div>
+                ) : retentionError ? (
+                  <div className="text-xl font-bold text-muted-foreground">--</div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {retentionData?.metrics ? 
+                        `${retentionData.metrics.avgRetention1Week.toFixed(1)}%` : '0%'}
+                    </div>
+                    <div className="flex items-center text-xs text-muted-foreground">
+                      <TrendingUp className="w-3 h-3 mr-1 text-blue-500" />
+                      Average
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 

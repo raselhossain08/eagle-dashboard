@@ -1,20 +1,11 @@
 // components/discounts/fraud-detection-panel.tsx
 'use client';
 
-import { Redemption } from '@/types/discounts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Shield, Eye, Ban } from 'lucide-react';
-
-interface SuspiciousActivity {
-  type: 'multiple_ips' | 'bulk_redemptions' | 'unusual_pattern' | 'high_value_new_user';
-  count: number;
-  details: string;
-  redemptions: Redemption[];
-  fraudScore?: number;
-  riskLevel: 'low' | 'medium' | 'high';
-}
+import { AlertTriangle, Shield, Eye, Ban, Clock, Users, MapPin, Bot } from 'lucide-react';
+import { SuspiciousActivity } from '@/lib/api/fraud-detection.service';
 
 interface FraudDetectionPanelProps {
   suspiciousActivity: SuspiciousActivity[];
@@ -34,13 +25,17 @@ export function FraudDetectionPanel({
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'multiple_ips':
-        return <Shield className="h-5 w-5 text-yellow-500" />;
+        return <MapPin className="h-5 w-5 text-yellow-500" />;
       case 'bulk_redemptions':
-        return <AlertTriangle className="h-5 w-5 text-orange-500" />;
+        return <Users className="h-5 w-5 text-orange-500" />;
       case 'unusual_pattern':
         return <Ban className="h-5 w-5 text-red-500" />;
       case 'high_value_new_user':
         return <AlertTriangle className="h-5 w-5 text-purple-500" />;
+      case 'velocity_abuse':
+        return <Clock className="h-5 w-5 text-red-600" />;
+      case 'bot_activity':
+        return <Bot className="h-5 w-5 text-orange-600" />;
       default:
         return <AlertTriangle className="h-5 w-5 text-gray-500" />;
     }
@@ -69,8 +64,12 @@ export function FraudDetectionPanel({
         return 'Unusual Pattern';
       case 'high_value_new_user':
         return 'High Value New User';
+      case 'velocity_abuse':
+        return 'Velocity Abuse';
+      case 'bot_activity':
+        return 'Bot Activity';
       default:
-        return type.replace('_', ' ');
+        return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
   };
 
@@ -98,7 +97,7 @@ export function FraudDetectionPanel({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
             <div className="text-center p-4 border rounded-lg">
               <div className="text-2xl font-bold text-yellow-600">{suspiciousActivity.length}</div>
               <div className="text-sm text-muted-foreground">Active Alerts</div>
@@ -107,13 +106,21 @@ export function FraudDetectionPanel({
               <div className="text-2xl font-bold text-orange-600">
                 {suspiciousActivity.reduce((sum, activity) => sum + activity.count, 0)}
               </div>
-              <div className="text-sm text-muted-foreground">Suspicious Redemptions</div>
+              <div className="text-sm text-muted-foreground">Total Incidents</div>
             </div>
             <div className="text-center p-4 border rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold text-red-600">
                 {suspiciousActivity.filter(a => a.riskLevel === 'high').length}
               </div>
               <div className="text-sm text-muted-foreground">High Risk Alerts</div>
+            </div>
+            <div className="text-center p-4 border rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">
+                {suspiciousActivity.reduce((sum, activity) => 
+                  sum + (activity.affectedRedemptions?.length || 0), 0
+                )}
+              </div>
+              <div className="text-sm text-muted-foreground">Affected Redemptions</div>
             </div>
           </div>
         </CardContent>
@@ -148,11 +155,12 @@ export function FraudDetectionPanel({
                           {getActivityTitle(activity.type)}
                         </h4>
                         {getSeverityBadge(activity.riskLevel)}
-                        {activity.fraudScore && (
-                          <Badge variant="secondary">
-                            Score: {activity.fraudScore}
-                          </Badge>
-                        )}
+                        <Badge variant="secondary">
+                          Score: {activity.fraudScore}
+                        </Badge>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                          {activity.investigationStatus.replace('_', ' ').toUpperCase()}
+                        </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {activity.details}
@@ -162,7 +170,13 @@ export function FraudDetectionPanel({
                           {activity.count} occurrences
                         </span>
                         <span>
-                          {activity.redemptions.length} redemptions affected
+                          {activity.affectedRedemptions?.length || 0} redemptions affected
+                        </span>
+                        <span className="text-blue-600">
+                          ML Confidence: {(activity.mlConfidence * 100).toFixed(1)}%
+                        </span>
+                        <span className="text-purple-600">
+                          Score: {activity.fraudScore}
                         </span>
                       </div>
                     </div>

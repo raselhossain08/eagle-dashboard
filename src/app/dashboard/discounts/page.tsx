@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Download, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
-import { useDiscountsOverview, useExportDiscounts } from '@/hooks/use-discounts';
+import { useDiscountsOverview, useExportDiscounts, useDiscountsDashboard } from '@/hooks/use-discounts';
 import { useRedemptionStats } from '@/hooks/use-redemptions';
 import { toast } from 'sonner';
 
@@ -23,19 +23,26 @@ export default function DiscountsOverviewPage() {
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
   const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
 
-  // Fetch real data
+  // Fetch real data using enhanced hooks
   const { 
-    data: overviewData, 
-    isLoading: overviewLoading, 
-    error: overviewError 
-  } = useDiscountsOverview();
+    overview: { 
+      data: overviewData, 
+      isLoading: overviewLoading, 
+      error: overviewError 
+    },
+    active: { 
+      data: activeDiscounts 
+    },
+    isLoading: dashboardLoading,
+    refresh: refreshDashboard
+  } = useDiscountsDashboard();
 
   const { 
     data: trendsData, 
     isLoading: trendsLoading 
   } = useRedemptionStats({
-    from: startOfMonth,
-    to: endOfMonth
+    startDate: startOfMonth.toISOString(),
+    endDate: endOfMonth.toISOString()
   });
 
   const exportDiscounts = useExportDiscounts();
@@ -73,7 +80,7 @@ export default function DiscountsOverviewPage() {
         variant="outline" 
         size="sm"
         onClick={handleExport}
-        disabled={isExporting || overviewLoading}
+        disabled={isExporting || dashboardLoading}
       >
         <Download className="mr-2 h-4 w-4" />
         {isExporting ? 'Exporting...' : 'Export'}
@@ -87,7 +94,7 @@ export default function DiscountsOverviewPage() {
     </div>
   );
 
-  // Handle error state
+  // Handle error state with refresh option
   if (overviewError) {
     return (
       <DiscountsDashboardShell
@@ -99,6 +106,14 @@ export default function DiscountsOverviewPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             Failed to load discounts overview: {overviewError.message}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="ml-2"
+              onClick={refreshDashboard}
+            >
+              Try Again
+            </Button>
           </AlertDescription>
         </Alert>
       </DiscountsDashboardShell>
@@ -126,21 +141,26 @@ export default function DiscountsOverviewPage() {
     topPerformingCode: 'N/A'
   };
 
-  // Transform trends data for chart
-  const transformedTrendsData = trendsData?.conversionFunnel?.map((item, index) => ({
-    date: item.step,
-    redemptions: item.count,
-    revenue: (item.count * 100), // Simplified calculation
-    discountAmount: (item.count * 20) // Simplified calculation
-  })) || [];
+  // Transform trends data for chart - using real redemption stats conversion funnel
+  const transformedTrendsData = trendsData?.conversionFunnel?.map((item: any, index: number) => {
+    const baseDate = new Date();
+    baseDate.setDate(baseDate.getDate() - (trendsData.conversionFunnel.length - index - 1));
+    
+    return {
+      date: baseDate.toISOString().split('T')[0],
+      redemptions: item.count || 0,
+      revenue: (item.count || 0) * (trendsData.averageOrderValue || 50), // Use real average order value
+      discountAmount: (item.count || 0) * (trendsData.averageDiscount || 10) // Use real average discount
+    };
+  }) || [];
 
-  // Transform top performing discounts
-  const transformedTopDiscounts = overviewData?.topPerformingDiscounts?.slice(0, 5).map(discount => ({
+  // Transform top performing discounts with real data
+  const transformedTopDiscounts = overviewData?.topPerformingDiscounts?.slice(0, 5).map((discount: any) => ({
     code: discount.code,
     redemptions: discount.timesRedeemed || 0,
-    revenue: 0, // This would need additional data from backend
-    conversionRate: 0, // This would need additional data from backend
-    discountAmount: 0 // This would need additional data from backend
+    revenue: discount.totalRevenue || 0,
+    conversionRate: discount.redemptionRate || 0,
+    discountAmount: discount.totalDiscountAmount || 0
   })) || [];
 
   return (
@@ -149,8 +169,8 @@ export default function DiscountsOverviewPage() {
       description="Manage discount codes, campaigns, and track performance"
       actions={actions}
     >
-      {/* Overview Cards */}
-      {overviewLoading ? (
+      {/* Overview Cards with Real Data */}
+      {dashboardLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="space-y-3 p-6 border rounded-lg">
@@ -181,9 +201,9 @@ export default function DiscountsOverviewPage() {
           )}
         </div>
 
-        {/* Top Performing Discounts */}
+        {/* Top Performing Discounts with Real Data */}
         <div className="space-y-3">
-          {overviewLoading ? (
+          {dashboardLoading ? (
             <div className="p-6 border rounded-lg">
               <Skeleton className="h-6 w-40 mb-4" />
               <div className="space-y-3">

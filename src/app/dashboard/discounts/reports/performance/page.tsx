@@ -57,7 +57,10 @@ export default function PerformanceReportsPage() {
     data: statsData, 
     isLoading: statsLoading,
     error: statsError 
-  } = useRedemptionStats(dateRange);
+  } = useRedemptionStats({
+    startDate: dateRange.from.toISOString().split('T')[0],
+    endDate: dateRange.to.toISOString().split('T')[0]
+  });
 
   const exportDiscounts = useExportDiscounts();
 

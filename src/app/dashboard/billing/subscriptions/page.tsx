@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { BillingDashboardShell } from '@/components/billing/billing-dashboard-shell';
 import { BillingNavigation } from '@/components/billing/billing-navigation';
 import { SubscriptionsTable } from '@/components/billing/subscriptions-table';
@@ -13,6 +14,7 @@ import { useBillingMetrics } from '@/hooks/use-billing';
 import { Subscription, SubscriptionStatus } from '@/types/billing';
 
 export default function SubscriptionsPage() {
+  const router = useRouter();
   const [filters, setFilters] = useState({
     status: undefined as SubscriptionStatus | undefined,
     search: '',
@@ -70,12 +72,7 @@ export default function SubscriptionsPage() {
   // Calculate overview data from actual data with proper null checks
   const subscriptions = subscriptionsData?.data || [];
   
-  // Debug logging
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Subscriptions data:', subscriptionsData);
-    console.log('Subscriptions array:', subscriptions);
-    console.log('Metrics data:', metricsData);
-  }
+
 
   const overviewData = {
     totalActive: subscriptions.filter(s => s.status === 'active').length,
@@ -97,10 +94,11 @@ export default function SubscriptionsPage() {
         title="Subscriptions"
         description="Manage customer subscriptions and billing"
         breadcrumbs={breadcrumbs}
+        showStats={false}
         actions={
-          <Button>
+          <Button onClick={() => router.push('/dashboard/subscribers/create')}>
             <Plus className="h-4 w-4 mr-2" />
-            New Subscription
+            Add Subscriber
           </Button>
         }
       >
@@ -131,7 +129,7 @@ export default function SubscriptionsPage() {
 
           {/* Quick Stats */}
           <div className="grid gap-4 md:grid-cols-4">
-            <div className="bg-white p-4 rounded-lg border shadow-sm">
+            <div key="active-subscriptions" className="bg-white p-4 rounded-lg border shadow-sm">
               <div className="flex items-center">
                 <Users className="h-8 w-8 text-green-600 mr-3" />
                 <div>
@@ -140,7 +138,7 @@ export default function SubscriptionsPage() {
                 </div>
               </div>
             </div>
-            <div className="bg-white p-4 rounded-lg border shadow-sm">
+            <div key="canceled-subscriptions" className="bg-white p-4 rounded-lg border shadow-sm">
               <div className="flex items-center">
                 <TrendingDown className="h-8 w-8 text-red-600 mr-3" />
                 <div>
@@ -149,7 +147,7 @@ export default function SubscriptionsPage() {
                 </div>
               </div>
             </div>
-            <div className="bg-white p-4 rounded-lg border shadow-sm">
+            <div key="upcoming-renewals" className="bg-white p-4 rounded-lg border shadow-sm">
               <div className="flex items-center">
                 <Clock className="h-8 w-8 text-orange-600 mr-3" />
                 <div>
@@ -158,7 +156,7 @@ export default function SubscriptionsPage() {
                 </div>
               </div>
             </div>
-            <div className="bg-white p-4 rounded-lg border shadow-sm">
+            <div key="avg-lifetime" className="bg-white p-4 rounded-lg border shadow-sm">
               <div className="flex items-center">
                 <TrendingUp className="h-8 w-8 text-blue-600 mr-3" />
                 <div>

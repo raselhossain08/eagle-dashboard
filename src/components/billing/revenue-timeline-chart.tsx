@@ -78,7 +78,8 @@ export function RevenueTimelineChart({ data, period, isLoading }: RevenueTimelin
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={350}>
+        <div className="min-h-[350px]">
+          <ResponsiveContainer width="100%" height={350} minHeight={300}>
           <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis 
@@ -87,7 +88,7 @@ export function RevenueTimelineChart({ data, period, isLoading }: RevenueTimelin
               fontSize={12}
             />
             <YAxis 
-              tickFormatter={formatCurrency}
+              tickFormatter={(value) => formatCurrency(value)}
               fontSize={12}
             />
             <Tooltip content={<CustomTooltip />} />
@@ -120,6 +121,7 @@ export function RevenueTimelineChart({ data, period, isLoading }: RevenueTimelin
             />
           </AreaChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );

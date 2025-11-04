@@ -25,11 +25,11 @@ export default function AnalyticsPage() {
   // Transform channel data for DonutChart
   const transformedChannelData = useMemo(() => {
     if (channelData && channelData.length > 0) {
-      const totalSessions = channelData.reduce((sum, item) => sum + item.sessions, 0);
+      const totalValue = channelData.reduce((sum, item) => sum + item.value, 0);
       return channelData.map((item, index) => ({
-        name: item.channel || 'Unknown',
-        value: totalSessions > 0 ? Math.round((item.sessions / totalSessions) * 100) : 0,
-        color: ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"][index % 6]
+        name: item.name || 'Unknown',
+        value: totalValue > 0 ? Math.round((item.value / totalValue) * 100) : 0,
+        color: item.color || ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"][index % 6]
       }));
     }
     return [];

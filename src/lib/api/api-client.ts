@@ -1,4 +1,5 @@
 // lib/api/api-client.ts
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
 import { AuthCookieService } from '@/lib/auth/cookie-service';
 
 class ApiClient {
@@ -16,7 +17,11 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = AuthCookieService.getAccessToken();
+    // Try to get token from TokenStorageService first (primary), then fallback to AuthCookieService
+    let token = TokenStorageService.getAccessToken();
+    if (!token) {
+      token = AuthCookieService.getAccessToken();
+    }
     
     const headers = new Headers({
       ...this.defaultHeaders,
@@ -26,9 +31,16 @@ class ApiClient {
     // Add Authorization header if token exists
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
+      console.log('🔑 ApiClient: Added Authorization header with token');
+    } else {
+      console.log('⚠️ ApiClient: No access token found for request');
     }
 
-    const url = `${this.baseURL}${endpoint}`;
+    // For Next.js API routes, use relative URLs. For backend API, use full URL.
+    const url = endpoint.startsWith('/api/') 
+      ? endpoint // Next.js API route - use as is
+      : `${this.baseURL}${endpoint}`; // Backend API - prepend baseURL
+    
     const config: RequestInit = {
       ...options,
       headers,
@@ -36,7 +48,7 @@ class ApiClient {
     };
 
     try {
-      console.log('ApiClient: Making request to:', url);
+      console.log('ApiClient: Making request to:', url, '(endpoint:', endpoint, ')');
       const response = await fetch(url, config);
       console.log('ApiClient: Response status:', response.status);
 
@@ -44,15 +56,10 @@ class ApiClient {
         console.log('ApiClient: 401 Unauthorized');
         
         // Clear authentication data on 401
+        TokenStorageService.clearTokens();
         AuthCookieService.clearAuthData();
         
-        // Only redirect to login if this is not a login request
-        if (!endpoint.includes('/auth/login') && typeof window !== 'undefined') {
-          console.log('ApiClient: Authentication failed - redirecting to login');
-          window.location.href = '/login';
-        }
-        
-        // For login requests, just throw an error
+        // Don't redirect to login - just throw error and let components handle it
         let errorData: any = {};
         try {
           errorData = await response.json();

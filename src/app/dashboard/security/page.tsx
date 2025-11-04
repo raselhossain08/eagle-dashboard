@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LoadingSpinner } from '@/components/loading-spinner';
 import { 
   useSecurityDashboard, 
@@ -33,8 +34,10 @@ import {
   useDetectAnomalies
 } from '@/hooks/use-security';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
+import { SecurityErrorBoundary } from '@/components/security/error-boundary';
 
-export default function SecurityPage() {
+function SecurityPageContent() {
   const [showSensitive, setShowSensitive] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState(30);
   
@@ -55,29 +58,58 @@ export default function SecurityPage() {
   const detectAnomalies = useDetectAnomalies();
 
   const handleRefresh = async () => {
-    await refetchDashboard();
+    try {
+      await Promise.all([
+        refetchDashboard(),
+        // You can add other refetch calls here if needed
+      ]);
+      toast.success('Security dashboard refreshed');
+    } catch (error) {
+      console.error('Refresh error:', error);
+      toast.error('Failed to refresh dashboard');
+    }
   };
 
   const handleResolveAlert = async (alertId: string) => {
-    await resolveAlert.mutateAsync({ 
-      id: alertId, 
-      notes: 'Resolved from security dashboard' 
-    });
+    try {
+      await resolveAlert.mutateAsync({ 
+        id: alertId, 
+        notes: 'Resolved from security dashboard' 
+      });
+    } catch (error) {
+      console.error('Failed to resolve alert:', error);
+      // Error is already handled in the hook
+    }
   };
 
   const handleDismissAlert = async (alertId: string) => {
-    await dismissAlert.mutateAsync(alertId);
+    try {
+      await dismissAlert.mutateAsync(alertId);
+    } catch (error) {
+      console.error('Failed to dismiss alert:', error);
+      // Error is already handled in the hook
+    }
   };
 
   const handleTerminateSession = async (sessionId: string) => {
-    await terminateSession.mutateAsync({ 
-      sessionId, 
-      reason: 'Terminated from security dashboard' 
-    });
+    try {
+      await terminateSession.mutateAsync({ 
+        sessionId, 
+        reason: 'Terminated from security dashboard' 
+      });
+    } catch (error) {
+      console.error('Failed to terminate session:', error);
+      // Error is already handled in the hook
+    }
   };
 
   const handleDetectAnomalies = async () => {
-    await detectAnomalies.mutateAsync();
+    try {
+      await detectAnomalies.mutateAsync();
+    } catch (error) {
+      console.error('Failed to detect anomalies:', error);
+      // Error is already handled in the hook
+    }
   };
 
   const SecurityStatCard = ({ title, value, icon: Icon, color, trend }: any) => (
@@ -112,7 +144,8 @@ export default function SecurityPage() {
     }
   };
 
-  if (dashboardLoading || healthLoading) {
+  // Show loading state for initial load
+  if ((dashboardLoading && !dashboard) || (healthLoading && !health)) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -120,14 +153,20 @@ export default function SecurityPage() {
             <Skeleton className="h-8 w-64" />
             <Skeleton className="h-4 w-96 mt-2" />
           </div>
-          <Skeleton className="h-10 w-24" />
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-24" />
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
-        <Skeleton className="h-96" />
+        <div className="space-y-6">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-96" />
+        </div>
       </div>
     );
   }
@@ -141,6 +180,20 @@ export default function SecurityPage() {
           <p className="text-gray-600 mt-1">Monitor and manage security events and sessions</p>
         </div>
         <div className="flex items-center gap-2">
+          <Select 
+            value={selectedTimeRange.toString()} 
+            onValueChange={(value) => setSelectedTimeRange(Number(value))}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Last 7 days</SelectItem>
+              <SelectItem value="30">Last 30 days</SelectItem>
+              <SelectItem value="90">Last 90 days</SelectItem>
+              <SelectItem value="365">Last year</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             onClick={handleDetectAnomalies}
@@ -453,5 +506,13 @@ export default function SecurityPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function SecurityPage() {
+  return (
+    <SecurityErrorBoundary>
+      <SecurityPageContent />
+    </SecurityErrorBoundary>
   );
 }

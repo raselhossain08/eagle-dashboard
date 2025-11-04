@@ -129,7 +129,7 @@ export function TemplatesTable({
                   </span>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={template.isActive ? "success" : "secondary"}>
+                  <Badge variant={template.isActive ? "default" : "secondary"}>
                     {template.isActive ? 'Active' : 'Inactive'}
                   </Badge>
                 </TableCell>

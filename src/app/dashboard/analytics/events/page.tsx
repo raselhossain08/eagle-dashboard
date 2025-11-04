@@ -12,13 +12,14 @@ import { useMemo } from "react";
 export default function EventsPage() {
   const { dateRange } = useDashboardStore();
   
-  // API Hooks
+  // API Hooks with proper error handling
   const { 
     data: eventTrends, 
     isLoading: trendsLoading, 
     error: trendsError 
   } = useEventTrends({
-    ...dateRange,
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
     groupBy: 'day'
   });
   
@@ -26,101 +27,95 @@ export default function EventsPage() {
     data: overviewStats, 
     isLoading: overviewLoading,
     error: overviewError 
-  } = useOverviewStats(dateRange);
+  } = useOverviewStats({
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate
+  });
   
   const { 
     data: eventStatistics, 
     isLoading: statisticsLoading,
     error: statisticsError 
-  } = useEventStatistics(dateRange);
+  } = useEventStatistics({
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate
+  });
   
   const { 
     data: eventDetails, 
     isLoading: detailsLoading,
     error: detailsError 
-  } = useEventDetails({ ...dateRange, limit: 10 });
+  } = useEventDetails({ 
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate, 
+    limit: 10 
+  });
 
-  // Transform event trends data for charts
+  // Transform event trends data for charts - only when data exists
   const transformedEventTrends = useMemo(() => {
-    if (eventTrends && eventTrends.length > 0) {
-      return eventTrends.map(item => ({
-        date: item.date,
-        value: item.count,
-        category: item.event
-      }));
-    }
-    return [];
+    if (!eventTrends || eventTrends.length === 0) return [];
+    
+    return eventTrends.map(item => ({
+      date: item.date,
+      value: item.count || item.events || 0,
+      category: item.event || 'events'
+    }));
   }, [eventTrends]);
 
-  // Calculate event summary data from statistics with fallback
+  // Calculate event summary data from real statistics
   const eventSummaryData = useMemo(() => {
-    // Primary: use statistics data
-    if (eventStatistics && eventStatistics.length > 0) {
-      return eventStatistics.map(stat => ({ 
+    if (!eventStatistics || eventStatistics.length === 0) return [];
+    
+    return eventStatistics
+      .map(stat => ({ 
         name: stat.event, 
         value: stat.count 
-      })).slice(0, 10);
-    }
-    
-    // Fallback: aggregate trends data if statistics fails
-    if (statisticsError && eventTrends && eventTrends.length > 0) {
-      const eventCounts = eventTrends.reduce((acc, item) => {
-        acc[item.event] = (acc[item.event] || 0) + item.count;
-        return acc;
-      }, {} as Record<string, number>);
-      
-      return Object.entries(eventCounts)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 10);
-    }
-    
-    return [];
-  }, [eventStatistics, statisticsError, eventTrends]);
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [eventStatistics]);
 
-  // Calculate metrics from real data with fallbacks
+  // Calculate metrics from real data only
   const metrics = useMemo(() => {
-    // If statistics API fails, fallback to trends data for basic metrics
-    if (eventStatistics && overviewStats) {
-      const totalEvents = eventStatistics.reduce((sum, stat) => sum + stat.count, 0);
-      const uniqueEvents = eventStatistics.length;
-      const activeUsers = overviewStats.totalUsers || 0;
-      const avgEventsPerUser = activeUsers > 0 
-        ? (totalEvents / activeUsers).toFixed(1)
-        : '0.0';
-      
-      return {
-        totalEvents,
-        uniqueEvents,
-        activeUsers,
-        avgEventsPerUser
-      };
-    }
-    
-    // Fallback: use trends data if statistics fails but trends works
-    if (statisticsError && eventTrends && overviewStats) {
-      const totalEvents = eventTrends.reduce((sum, trend) => sum + trend.count, 0);
-      const uniqueEvents = [...new Set(eventTrends.map(trend => trend.event))].length;
-      const activeUsers = overviewStats.totalUsers || 0;
-      const avgEventsPerUser = activeUsers > 0 
-        ? (totalEvents / activeUsers).toFixed(1)
-        : '0.0';
-        
-      return {
-        totalEvents,
-        uniqueEvents,
-        activeUsers,
-        avgEventsPerUser
-      };
-    }
-    
-    return {
+    // Default values
+    const defaultMetrics = {
       totalEvents: 0,
       uniqueEvents: 0,
       activeUsers: 0,
       avgEventsPerUser: '0.0'
     };
-  }, [eventStatistics, overviewStats, statisticsError, eventTrends]);
+
+    // Only calculate if we have the necessary data
+    if (!eventStatistics || !overviewStats) return defaultMetrics;
+
+    const totalEvents = eventStatistics.reduce((sum, stat) => sum + stat.count, 0);
+    const uniqueEvents = eventStatistics.length;
+    const activeUsers = overviewStats.totalUsers || 0;
+    const avgEventsPerUser = activeUsers > 0 
+      ? (totalEvents / activeUsers).toFixed(1)
+      : '0.0';
+    
+    return {
+      totalEvents,
+      uniqueEvents,
+      activeUsers,
+      avgEventsPerUser
+    };
+  }, [eventStatistics, overviewStats]);
+
+  // Format large numbers for display
+  const formatNumber = (num: number): string => {
+    if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(1)}M`;
+    } else if (num >= 1000) {
+      return `${(num / 1000).toFixed(1)}K`;
+    }
+    return num.toLocaleString();
+  };
+
+  // Loading states for different sections
+  const metricsLoading = statisticsLoading || overviewLoading;
+  const chartsLoading = trendsLoading || statisticsLoading;
 
   return (
     <DashboardShell
@@ -136,20 +131,19 @@ export default function EventsPage() {
               <MousePointerClick className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {statisticsLoading || overviewLoading ? (
+              {metricsLoading ? (
                 <div className="text-2xl font-bold h-8 bg-muted rounded animate-pulse" />
               ) : (
                 <div className="text-2xl font-bold">
-                  {metrics.totalEvents > 1000 
-                    ? `${(metrics.totalEvents / 1000).toFixed(1)}K` 
-                    : metrics.totalEvents.toLocaleString()}
+                  {formatNumber(metrics.totalEvents)}
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Real-time data
+                Real-time data from {dateRange.startDate.toLocaleDateString()} to {dateRange.endDate.toLocaleDateString()}
               </p>
             </CardContent>
           </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Unique Events</CardTitle>
@@ -166,6 +160,7 @@ export default function EventsPage() {
               </p>
             </CardContent>
           </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Users</CardTitle>
@@ -176,29 +171,28 @@ export default function EventsPage() {
                 <div className="text-2xl font-bold h-8 bg-muted rounded animate-pulse" />
               ) : (
                 <div className="text-2xl font-bold">
-                  {metrics.activeUsers > 1000 
-                    ? `${(metrics.activeUsers / 1000).toFixed(1)}K` 
-                    : metrics.activeUsers.toLocaleString()}
+                  {formatNumber(metrics.activeUsers)}
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Current period
+                Users in selected period
               </p>
             </CardContent>
           </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Avg. Events/User</CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {statisticsLoading || overviewLoading ? (
+              {metricsLoading ? (
                 <div className="text-2xl font-bold h-8 bg-muted rounded animate-pulse" />
               ) : (
                 <div className="text-2xl font-bold">{metrics.avgEventsPerUser}</div>
               )}
               <p className="text-xs text-muted-foreground">
-                Calculated from data
+                Calculated from real data
               </p>
             </CardContent>
           </Card>
@@ -206,53 +200,28 @@ export default function EventsPage() {
 
         {/* Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
+          {/* Event Trends Chart */}
           <div>
-            {trendsError ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Event Trends Over Time</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">
-                      Failed to load event trends. Please check your connection and try again.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <TimeSeriesChart
-                data={transformedEventTrends}
-                title="Event Trends Over Time"
-                valueFormatter={(value) => value.toLocaleString()}
-                showLegend={true}
-                isLoading={trendsLoading}
-              />
-            )}
+            <TimeSeriesChart
+              data={transformedEventTrends}
+              title="Event Trends Over Time"
+              valueFormatter={(value) => value.toLocaleString()}
+              showLegend={true}
+              isLoading={trendsLoading}
+              
+            />
           </div>
+          
+          {/* Top Events Chart */}
           <div>
-            {statisticsError ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top Events by Volume</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">
-                      Failed to load event statistics. Please check your connection and try again.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <BarChart
-                data={eventSummaryData}
-                title="Top Events by Volume"
-                valueFormatter={(value) => value.toLocaleString()}
-                orientation="horizontal"
-                isLoading={statisticsLoading}
-              />
-            )}
+            <BarChart
+              data={eventSummaryData}
+              title="Top Events by Volume"
+              valueFormatter={(value) => value.toLocaleString()}
+              orientation="horizontal"
+              isLoading={statisticsLoading}
+              
+            />
           </div>
         </div>
 
@@ -296,7 +265,7 @@ export default function EventsPage() {
                   <div className="text-right">Conversion Rate</div>
                   <div className="text-right">Avg. Value</div>
                 </div>
-                {eventDetails.slice(0, 10).map((event, index) => (
+                {eventDetails.map((event, index) => (
                   <div key={`${event.event}-${index}`} className="grid grid-cols-5 gap-4 items-center py-2 border-b hover:bg-muted/50">
                     <div className="font-medium capitalize">
                       {event.event.replace(/_/g, ' ')}
@@ -309,49 +278,14 @@ export default function EventsPage() {
                     </div>
                     <div className="text-right">
                       <span className={event.conversionRate > 10 ? "text-green-600" : event.conversionRate > 5 ? "text-orange-600" : "text-red-600"}>
-                        {event.conversionRate.toFixed(1)}%
+                        {event.conversionRate?.toFixed(1)}%
                       </span>
                     </div>
                     <div className="text-right">
-                      {event.avgValue > 0 ? `$${event.avgValue.toFixed(2)}` : '-'}
+                      {event.avgValue > 0 ? `$${event.avgValue?.toFixed(2)}` : '-'}
                     </div>
                   </div>
                 ))}
-              </div>
-            ) : detailsError && eventStatistics && eventStatistics.length > 0 ? (
-              // Fallback: show basic statistics if details API fails
-              <div className="space-y-4">
-                <div className="grid grid-cols-5 gap-4 font-medium text-sm">
-                  <div>Event Name</div>
-                  <div className="text-right">Count</div>
-                  <div className="text-right">Unique Users</div>
-                  <div className="text-right">Conversion Rate</div>
-                  <div className="text-right">Avg. Value</div>
-                </div>
-                {eventStatistics.slice(0, 10).map((event, index) => (
-                  <div key={`${event.event}-${index}`} className="grid grid-cols-5 gap-4 items-center py-2 border-b hover:bg-muted/50">
-                    <div className="font-medium capitalize">
-                      {event.event.replace(/_/g, ' ')}
-                    </div>
-                    <div className="text-right font-semibold">
-                      {event.count.toLocaleString()}
-                    </div>
-                    <div className="text-right">
-                      {event.uniqueUsers.toLocaleString()}
-                    </div>
-                    <div className="text-right">
-                      <span className={event.conversionRate > 10 ? "text-green-600" : event.conversionRate > 5 ? "text-orange-600" : "text-red-600"}>
-                        {event.conversionRate.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      {event.avgValue > 0 ? `$${event.avgValue.toFixed(2)}` : '-'}
-                    </div>
-                  </div>
-                ))}
-                <div className="text-xs text-muted-foreground text-center py-2">
-                  ⚠️ Showing basic statistics (detailed view unavailable)
-                </div>
               </div>
             ) : (
               <div className="text-center py-8">

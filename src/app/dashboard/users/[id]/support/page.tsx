@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSupportNotes, useCreateSupportNote, useSupportStats } from '@/hooks/useSupport';
+import { SupportNote } from '@/types/support';
 import { toast } from 'sonner';
 
 export default function SupportPage() {
@@ -59,8 +60,7 @@ export default function SupportPage() {
     content: '',
     category: 'general',
     isInternal: false,
-    followUpDate: '',
-    tags: ''
+    followUpDate: ''
   });
 
   const handleCreateNote = async (e: React.FormEvent) => {
@@ -69,14 +69,14 @@ export default function SupportPage() {
       await createNote.mutateAsync({
         userId,
         content: noteForm.content,
-        category: noteForm.category,
+        category: noteForm.category as SupportNote['category'],
         isInternal: noteForm.isInternal,
-        followUpDate: noteForm.followUpDate || undefined,
-        tags: noteForm.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+        requiresFollowUp: Boolean(noteForm.followUpDate),
+        followUpDate: noteForm.followUpDate || undefined
       });
       toast.success('Support note created successfully');
       setNewNoteOpen(false);
-      setNoteForm({ content: '', category: 'general', isInternal: false, followUpDate: '', tags: '' });
+      setNoteForm({ content: '', category: 'general', isInternal: false, followUpDate: '' });
     } catch (error: any) {
       toast.error(error.message || 'Failed to create note');
     }
@@ -88,15 +88,15 @@ export default function SupportPage() {
   };
 
   const getStatusColor = (isResolved: boolean) => {
-    return isResolved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+    return isResolved ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
   };
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
-      'technical': 'bg-blue-100 text-blue-800',
-      'billing': 'bg-purple-100 text-purple-800',
-      'general': 'bg-gray-100 text-gray-800',
-      'urgent': 'bg-red-100 text-red-800',
+      'technical': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+      'billing': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
+      'general': 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+      'urgent': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
     };
     return colors[category] || colors.general;
   };
@@ -131,7 +131,7 @@ export default function SupportPage() {
   }
 
   const notes = notesData?.notes || [];
-  const totalNotes = notesData?.totalCount || 0;
+  const totalNotes = notesData?.total || 0;
   const openNotes = notes.filter(note => !note.isResolved).length;
   const resolvedNotes = notes.filter(note => note.isResolved).length;
 
@@ -207,15 +207,7 @@ export default function SupportPage() {
                     />
                   </div>
                 </div>
-                <div>
-                  <Label htmlFor="tags">Tags (comma-separated)</Label>
-                  <Input
-                    id="tags"
-                    value={noteForm.tags}
-                    onChange={(e) => setNoteForm(prev => ({ ...prev, tags: e.target.value }))}
-                    placeholder="tag1, tag2, tag3"
-                  />
-                </div>
+
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -359,25 +351,14 @@ export default function SupportPage() {
                       </div>
                       
                       <div>
-                        <p className="text-sm text-gray-900 mb-2">{note.content}</p>
+                        <p className="text-sm text-gray-900 dark:text-gray-100 mb-2">{note.content}</p>
                         
-                        {note.tags && note.tags.length > 0 && (
-                          <div className="flex items-center gap-1 mb-2">
-                            <Tag className="h-3 w-3 text-muted-foreground" />
-                            <div className="flex gap-1">
-                              {note.tags.map((tag, index) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+
                         
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <User className="h-3 w-3" />
-                            Created by {note.createdBy}
+                            Created by {note.adminUser?.name}
                           </div>
                           {note.followUpDate && (
                             <div className="flex items-center gap-1">

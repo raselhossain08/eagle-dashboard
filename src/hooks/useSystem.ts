@@ -37,6 +37,7 @@ export const useSystemSettings = (category?: string) => {
   return useQuery({
     queryKey: ['system', 'settings', category],
     queryFn: () => systemService.getSettings(category),
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -44,6 +45,7 @@ export const useFeatureFlags = () => {
   return useQuery({
     queryKey: ['system', 'feature-flags'],
     queryFn: () => systemService.getFeatureFlags(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -53,6 +55,23 @@ export const useUpdateSetting = () => {
   return useMutation({
     mutationFn: ({ key, value }: { key: string; value: any }) =>
       systemService.updateSetting(key, value),
+    onSuccess: (_, variables) => {
+      // Invalidate both general settings and category-specific settings
+      queryClient.invalidateQueries({ queryKey: ['system', 'settings'] });
+      
+      // Extract category from key for targeted invalidation
+      const category = variables.key.split('.')[0];
+      queryClient.invalidateQueries({ queryKey: ['system', 'settings', category] });
+    },
+  });
+};
+
+export const useUpdateBulkSettings = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (settings: Record<string, any>) =>
+      systemService.updateBulkSettings(settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['system', 'settings'] });
     },
@@ -71,12 +90,42 @@ export const useToggleFeatureFlag = () => {
   });
 };
 
+export const useExportSettings = () => {
+  return useMutation({
+    mutationFn: (category?: string) => systemService.exportSettings(category),
+  });
+};
+
+export const useImportSettings = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (settingsData: Record<string, any>) =>
+      systemService.importSettings(settingsData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['system', 'settings'] });
+      queryClient.invalidateQueries({ queryKey: ['system', 'feature-flags'] });
+    },
+  });
+};
+
 // Webhook operations
 export const useWebhookStats = (endpointId?: string) => {
   return useQuery({
     queryKey: ['system', 'webhooks', 'stats', endpointId],
     queryFn: () => systemService.getWebhookStats(endpointId),
     refetchInterval: 30000, // 30 seconds
+  });
+};
+
+export const useSystemAlerts = () => {
+  return useQuery({
+    queryKey: ['system', 'alerts'],
+    queryFn: async () => {
+      // This would be a real endpoint in production
+      return [];
+    },
+    refetchInterval: 60000, // 1 minute
   });
 };
 

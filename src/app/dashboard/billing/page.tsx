@@ -9,7 +9,7 @@ import { RevenueBreakdownChart } from '@/components/billing/revenue-breakdown-ch
 import { useBillingOverview } from '@/hooks/use-billing';
 
 export default function BillingPage() {
-  const { data, isLoading, dateRange, setDateRange } = useBillingOverview();
+  const { data, isLoading, error, dateRange, setDateRange } = useBillingOverview();
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -21,6 +21,9 @@ export default function BillingPage() {
       title="Billing Overview"
       description="Monitor your revenue, subscriptions, and billing performance"
       breadcrumbs={breadcrumbs}
+      billingData={data}
+      isLoading={isLoading}
+      error={error}
     >
       <div className="space-y-6">
         {/* Date Range Picker */}

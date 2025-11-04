@@ -1,3 +1,5 @@
+import { Alert, SystemMetrics, ServiceStatus } from '@/types/health';
+
 interface AlertRule {
   service: string;
   metric: string;
@@ -9,9 +11,9 @@ interface AlertRule {
 export class AlertManager {
   private rules: AlertRule[] = [
     { service: 'memory', metric: 'usagePercentage', threshold: 90, severity: 'critical' },
-    { service: 'memory', metric: 'usagePercentage', threshold: 80, severity: 'warning' },
+    { service: 'memory', metric: 'usagePercentage', threshold: 80, severity: 'high' },
     { service: 'disk', metric: 'usagePercentage', threshold: 85, severity: 'critical' },
-    { service: 'database', metric: 'responseTime', threshold: 1000, severity: 'warning' },
+    { service: 'database', metric: 'responseTime', threshold: 1000, severity: 'high' },
   ];
 
   checkMetrics(metrics: SystemMetrics, services: ServiceStatus[]): Alert[] {
@@ -30,9 +32,9 @@ export class AlertManager {
     // Check service status
     services.forEach(service => {
       if (service.status === 'down') {
-        alerts.push(this.createServiceAlert(service.name, 'critical'));
+        alerts.push(this.createAlert(service.name, 'critical', 100));
       } else if (service.status === 'degraded') {
-        alerts.push(this.createServiceAlert(service.name, 'warning'));
+        alerts.push(this.createAlert(service.name, 'high', 80));
       }
     });
 

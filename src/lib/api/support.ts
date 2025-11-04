@@ -11,11 +11,25 @@ import {
   CreateSavedReplyDto,
   NotesResponse,
   HistoryResponse,
-  Customer
+  Customer,
+  TeamPerformanceData,
+  SupportAnalytics,
+  ResponseTimeAnalytics,
+  TicketVolumeAnalytics,
+  CategoryAnalytics,
+  SupportReport,
+  ImpersonationStats,
+  DashboardAnalytics,
+  RecentActivity,
+  PendingFollowUp,
+  SatisfactionTrend,
+  TicketTrend,
+  PerformanceOverview,
+  UrgentNotification
 } from '@/types/support';
 
 class SupportService {
-  private baseUrl = '/support';
+  private baseUrl = '/api/v1/support';
 
   // Support notes
   async createSupportNote(data: CreateSupportNoteDto): Promise<SupportNote> {
@@ -51,6 +65,18 @@ class SupportService {
     return apiClient.get<HistoryResponse>(`${this.baseUrl}/impersonation/history`, params);
   }
 
+  async getImpersonationStats(): Promise<ImpersonationStats> {
+    return apiClient.get(`${this.baseUrl}/impersonation/stats`);
+  }
+
+  async getImpersonationSessionDetail(sessionId: string): Promise<ImpersonationSession> {
+    return apiClient.get<ImpersonationSession>(`${this.baseUrl}/impersonation/session/${sessionId}`);
+  }
+
+  async forceEndImpersonation(logId: string, reason: string): Promise<ImpersonationSession> {
+    return apiClient.post<ImpersonationSession>(`${this.baseUrl}/impersonation/force-end/${logId}`, { reason });
+  }
+
   // Saved replies
   async createSavedReply(data: CreateSavedReplyDto): Promise<SavedReply> {
     return apiClient.post<SavedReply>(`${this.baseUrl}/saved-replies`, data);
@@ -69,28 +95,57 @@ class SupportService {
     return apiClient.get<SupportStats>(`${this.baseUrl}/stats`);
   }
 
-  async getSupportAnalytics(params?: { startDate?: string; endDate?: string }): Promise<any> {
-    return apiClient.get<any>(`${this.baseUrl}/analytics/performance`, params);
+  async getSupportAnalytics(params?: { startDate?: string; endDate?: string }): Promise<SupportAnalytics> {
+    return apiClient.get<SupportAnalytics>(`${this.baseUrl}/analytics/performance`, params);
   }
 
-  async getTeamPerformance(params?: { startDate?: string; endDate?: string }): Promise<any> {
-    return apiClient.get<any>(`${this.baseUrl}/analytics/team-performance`, params);
+  async getTeamPerformance(params?: { startDate?: string; endDate?: string }): Promise<TeamPerformanceData> {
+    return apiClient.get<TeamPerformanceData>(`${this.baseUrl}/analytics/team-performance`, params);
   }
 
-  async getResponseTimeAnalytics(days: number = 7): Promise<any> {
-    return apiClient.get<any>(`${this.baseUrl}/analytics/response-times`, { days });
+  async getResponseTimeAnalytics(days: number = 7): Promise<ResponseTimeAnalytics[]> {
+    return apiClient.get<ResponseTimeAnalytics[]>(`${this.baseUrl}/analytics/response-times`, { days });
   }
 
-  async getTicketVolumeAnalytics(months: number = 6): Promise<any> {
-    return apiClient.get<any>(`${this.baseUrl}/analytics/ticket-volume`, { months });
+  async getTicketVolumeAnalytics(months: number = 6): Promise<TicketVolumeAnalytics[]> {
+    return apiClient.get<TicketVolumeAnalytics[]>(`${this.baseUrl}/analytics/ticket-volume`, { months });
   }
 
-  async getCategoryAnalytics(params?: { startDate?: string; endDate?: string }): Promise<any> {
-    return apiClient.get<any>(`${this.baseUrl}/analytics/categories`, params);
+  async getCategoryAnalytics(params?: { startDate?: string; endDate?: string }): Promise<CategoryAnalytics[]> {
+    return apiClient.get<CategoryAnalytics[]>(`${this.baseUrl}/analytics/categories`, params);
   }
 
-  async generateReport(type: string, params?: { startDate?: string; endDate?: string }): Promise<any> {
-    return apiClient.get<any>(`${this.baseUrl}/reports/generate`, { type, ...params });
+  async generateReport(type: string, params?: { startDate?: string; endDate?: string }): Promise<SupportReport> {
+    return apiClient.get<SupportReport>(`${this.baseUrl}/reports/generate`, { type, ...params });
+  }
+
+  // Dashboard-specific methods
+  async getDashboardAnalytics(dateRange?: { startDate?: string; endDate?: string }): Promise<DashboardAnalytics> {
+    return apiClient.get<DashboardAnalytics>(`${this.baseUrl}/dashboard/analytics`, dateRange);
+  }
+
+  async getRecentActivities(limit?: number): Promise<RecentActivity[]> {
+    return apiClient.get<RecentActivity[]>(`${this.baseUrl}/dashboard/recent-activities`, { limit });
+  }
+
+  async getPendingFollowUps(limit?: number): Promise<PendingFollowUp[]> {
+    return apiClient.get<PendingFollowUp[]>(`${this.baseUrl}/notes/follow-ups`, { limit });
+  }
+
+  async getCustomerSatisfactionTrend(days?: number): Promise<SatisfactionTrend[]> {
+    return apiClient.get<SatisfactionTrend[]>(`${this.baseUrl}/analytics/satisfaction-trend`, { days });
+  }
+
+  async getTicketTrends(period?: string, days?: number): Promise<TicketTrend[]> {
+    return apiClient.get<TicketTrend[]>(`${this.baseUrl}/analytics/ticket-trends`, { period, days });
+  }
+
+  async getPerformanceOverview(): Promise<PerformanceOverview> {
+    return apiClient.get<PerformanceOverview>(`${this.baseUrl}/analytics/performance-overview`);
+  }
+
+  async getUrgentNotifications(): Promise<UrgentNotification[]> {
+    return apiClient.get<UrgentNotification[]>(`${this.baseUrl}/dashboard/urgent-notifications`);
   }
 }
 

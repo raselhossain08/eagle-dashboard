@@ -1,11 +1,12 @@
 // lib/api/segments.ts
 import { UserSegment, CreateUserSegmentDto, UpdateUserSegmentDto, SegmentUsersResponse } from '@/types/segments';
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
 
 export class SegmentsService {
   private static baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   private static getAuthHeaders() {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    const token = TokenStorageService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),

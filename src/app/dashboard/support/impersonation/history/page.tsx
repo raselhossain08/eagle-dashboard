@@ -5,20 +5,36 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Filter, Download, Calendar, User, Clock } from 'lucide-react';
+import { Search, Filter, Download, Calendar, User, Clock, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useImpersonationHistory } from '@/hooks/useSupport';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import Link from 'next/link';
 
 export default function ImpersonationHistoryPage() {
-  const { data: history, isLoading } = useImpersonationHistory();
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
 
-  const filteredSessions = history?.sessions.filter(session =>
-    session.adminUser.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    session.targetUser.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    session.reason.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const queryParams = useMemo(() => ({
+    page,
+    limit,
+    search: searchQuery || undefined,
+    startDate: dateFilter || undefined,
+  }), [page, limit, searchQuery, dateFilter]);
+
+  const { data: history, isLoading, error } = useImpersonationHistory(queryParams);
+
+  const totalPages = Math.ceil((history?.total || 0) / limit);
+
+  const handleSearch = () => {
+    setPage(1); // Reset to first page when searching
+  };
+
+  const handleExport = () => {
+    // TODO: Implement export functionality
+    console.log('Export report functionality to be implemented');
+  };
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -45,13 +61,21 @@ export default function ImpersonationHistoryPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Impersonation History</h1>
-          <p className="text-muted-foreground">
-            Complete audit log of all user impersonation sessions
-          </p>
+        <div className="flex items-center space-x-4">
+          <Link href="/dashboard/support/impersonation">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Impersonation History</h1>
+            <p className="text-muted-foreground">
+              Complete audit log of all user impersonation sessions
+            </p>
+          </div>
         </div>
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleExport}>
           <Download className="w-4 h-4 mr-2" />
           Export Report
         </Button>
@@ -89,9 +113,9 @@ export default function ImpersonationHistoryPage() {
               onChange={(e) => setDateFilter(e.target.value)}
               className="max-w-xs"
             />
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleSearch}>
               <Filter className="w-4 h-4 mr-2" />
-              Filter
+              Search
             </Button>
           </div>
         </CardHeader>
@@ -124,7 +148,14 @@ export default function ImpersonationHistoryPage() {
                     <TableCell><div className="h-4 bg-muted rounded w-20 animate-pulse" /></TableCell>
                   </TableRow>
                 ))
-              ) : filteredSessions?.length === 0 ? (
+              ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <User className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Failed to load impersonation history</p>
+                  </TableCell>
+                </TableRow>
+              ) : !history?.sessions || history.sessions.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     <User className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -132,7 +163,7 @@ export default function ImpersonationHistoryPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredSessions?.map((session) => (
+                history.sessions.map((session) => (
                   <TableRow key={session.id}>
                     <TableCell>
                       <div className="flex items-center space-x-2">
@@ -206,6 +237,51 @@ export default function ImpersonationHistoryPage() {
               )}
             </TableBody>
           </Table>
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, history?.total || 0)} of {history?.total || 0} sessions
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </Button>
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNum = Math.max(1, Math.min(totalPages, page - 2 + i));
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={pageNum === page ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setPage(pageNum)}
+                        className="w-8 h-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

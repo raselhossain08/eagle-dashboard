@@ -10,6 +10,7 @@ import { SystemMetricsCharts } from '@/components/health/SystemMetricsCharts';
 import { AlertsPanel } from '@/components/AlertsPanel';
 import { HealthHistory } from '@/components/health/HealthHistory';
 import { ExportHealthReport } from '@/components/health/ExportHealthReport';
+import { HealthErrorBoundary } from './error-boundary';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -17,12 +18,20 @@ import { AlertTriangle, RefreshCw, BarChart3, History, Activity } from 'lucide-r
 import { useEffect } from 'react';
 
 export default function HealthDashboard() {
+  return (
+    <HealthErrorBoundary>
+      <HealthDashboardContent />
+    </HealthErrorBoundary>
+  );
+}
+
+function HealthDashboardContent() {
   const { data: healthData, error, isLoading, isError, refetch } = useSystemHealth();
   const { data: historyData } = useHealthHistory(20);
   const { data: alertsData } = useHealthAlerts();
   const { setHealth, startMonitoring } = useHealthStore();
 
-  // Initialize WebSocket connection
+  // Initialize WebSocket connection (optional, with fallback)
   useHealthWebSocket();
 
   // Update store when data changes
@@ -58,6 +67,20 @@ export default function HealthDashboard() {
           <p className="text-muted-foreground">
             Real-time monitoring of system health and performance
           </p>
+          <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-blue-500 rounded-full" />
+              <span>API Data</span>
+            </div>
+            {healthData.lastCheck && (
+              <span>
+                • Last updated: {new Date(healthData.lastCheck).toLocaleTimeString()}
+              </span>
+            )}
+            <span className="text-xs">
+              • Auto-refresh: 30s
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button 

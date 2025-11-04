@@ -1,7 +1,7 @@
 // app/dashboard/billing/invoices/new/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { BillingDashboardShell } from '@/components/billing/billing-dashboard-shell';
 import { Button } from '@/components/ui/button';
@@ -11,11 +11,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Trash2, Calculator } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowLeft, Plus, Trash2, Calculator, Search, CreditCard, AlertTriangle } from 'lucide-react';
 import { useCreateInvoice } from '@/hooks/use-invoices';
-import { CreateInvoiceDto, InvoiceLineItem } from '@/types/billing';
+import { useUsers } from '@/hooks/use-users';
+import { useSubscriptions } from '@/hooks/use-subscriptions';
+import { CreateInvoiceDto, InvoiceLineItem, User as BillingUser, Subscription } from '@/types/billing';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
+import { ApiErrorHandler } from '@/components/api-error-handler';
+import { ErrorBoundary } from '@/components/error-boundary';
 import Link from 'next/link';
 
 interface LineItemForm extends Omit<InvoiceLineItem, 'id' | 'amount'> {
@@ -27,7 +33,12 @@ interface LineItemForm extends Omit<InvoiceLineItem, 'id' | 'amount'> {
 export default function NewInvoicePage() {
   const router = useRouter();
   const createInvoiceMutation = useCreateInvoice();
+  
+  // Refs for dropdown click outside detection
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+  const subscriptionDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Form state
   const [formData, setFormData] = useState({
     userId: '',
     subscriptionId: '',
@@ -40,9 +51,62 @@ export default function NewInvoicePage() {
     { description: '', quantity: 1, unitPrice: 0 }
   ]);
 
+  // User and subscription search
+  const [userSearch, setUserSearch] = useState('');
+  const [subscriptionSearch, setSubscriptionSearch] = useState('');
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showSubscriptionDropdown, setShowSubscriptionDropdown] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<BillingUser | null>(null);
+  const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
+
+  // Click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+      if (subscriptionDropdownRef.current && !subscriptionDropdownRef.current.contains(event.target as Node)) {
+        setShowSubscriptionDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // API queries
+  const { data: usersData, isLoading: usersLoading, error: usersError } = useUsers({
+    search: userSearch,
+    limit: 10,
+  });
+
+  const { data: subscriptionsData, isLoading: subscriptionsLoading, error: subscriptionsError } = useSubscriptions({
+    search: subscriptionSearch,
+    pageSize: 10,
+  });
+
   const [taxRate, setTaxRate] = useState(0);
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [discountValue, setDiscountValue] = useState(0);
+
+  // Memoized filtered data
+  const filteredUsers = useMemo(() => {
+    if (!usersData?.data) return [];
+    return userSearch 
+      ? usersData.data.filter(user => 
+          user.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+          user.firstName?.toLowerCase().includes(userSearch.toLowerCase()) ||
+          user.lastName?.toLowerCase().includes(userSearch.toLowerCase())
+        )
+      : usersData.data;
+  }, [usersData?.data, userSearch]);
+
+  const filteredSubscriptions = useMemo(() => {
+    if (!subscriptionsData?.data) return [];
+    return subscriptionSearch
+      ? subscriptionsData.data.filter(sub => sub.id.toLowerCase().includes(subscriptionSearch.toLowerCase()))
+      : subscriptionsData.data;
+  }, [subscriptionsData?.data, subscriptionSearch]);
 
   const breadcrumbs = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -91,24 +155,67 @@ export default function NewInvoicePage() {
     return subtotal + tax - discount;
   };
 
+  // User selection handlers
+  const handleUserSelect = (user: BillingUser) => {
+    setSelectedUser(user);
+    setFormData({ ...formData, userId: user.id });
+    setUserSearch(user.email);
+    setShowUserDropdown(false);
+  };
+
+  const handleSubscriptionSelect = (subscription: Subscription) => {
+    setSelectedSubscription(subscription);
+    setFormData({ ...formData, subscriptionId: subscription.id });
+    setSubscriptionSearch(subscription.id);
+    setShowSubscriptionDropdown(false);
+  };
+
+  const clearUserSelection = () => {
+    setSelectedUser(null);
+    setFormData({ ...formData, userId: '' });
+    setUserSearch('');
+  };
+
+  const clearSubscriptionSelection = () => {
+    setSelectedSubscription(null);
+    setFormData({ ...formData, subscriptionId: '' });
+    setSubscriptionSearch('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.userId) {
-      toast.error('Please enter a user ID');
+    // Validation
+    if (!selectedUser) {
+      toast.error('Please select a user for this invoice');
       return;
     }
 
-    if (lineItems.some(item => !item.description || item.quantity <= 0 || item.unitPrice < 0)) {
-      toast.error('Please fill in all line item details correctly');
+    if (lineItems.some(item => !item.description?.trim())) {
+      toast.error('Please provide descriptions for all line items');
+      return;
+    }
+
+    if (lineItems.some(item => item.quantity <= 0)) {
+      toast.error('All line items must have a quantity greater than 0');
+      return;
+    }
+
+    if (lineItems.some(item => item.unitPrice < 0)) {
+      toast.error('Unit prices cannot be negative');
+      return;
+    }
+
+    if (calculateTotal() <= 0) {
+      toast.error('Invoice total must be greater than 0');
       return;
     }
 
     const invoiceData: CreateInvoiceDto = {
-      userId: formData.userId,
-      subscriptionId: formData.subscriptionId || undefined,
+      userId: selectedUser.id,
+      subscriptionId: selectedSubscription?.id,
       lineItems: lineItems.map(item => ({
-        description: item.description,
+        description: item.description.trim(),
         quantity: item.quantity,
         unitPrice: Math.round(item.unitPrice * 100), // Convert to cents
         amount: Math.round(item.quantity * item.unitPrice * 100), // Convert to cents
@@ -129,26 +236,41 @@ export default function NewInvoicePage() {
       toast.success('Invoice created successfully');
       router.push(`/dashboard/billing/invoices/${result.id}`);
     } catch (error) {
-      toast.error('Failed to create invoice');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create invoice';
+      toast.error(errorMessage);
       console.error('Invoice creation error:', error);
     }
   };
 
   return (
-    <BillingDashboardShell
-      title="Create New Invoice"
-      description="Generate a new invoice for a customer"
-      breadcrumbs={breadcrumbs}
-      actions={
-        <Link href="/dashboard/billing/invoices">
-          <Button variant="outline">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Invoices
-          </Button>
-        </Link>
-      }
-    >
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <ErrorBoundary>
+      <BillingDashboardShell
+        title="Create New Invoice"
+        description="Generate a new invoice for a customer"
+        breadcrumbs={breadcrumbs}
+        actions={
+          <Link href="/dashboard/billing/invoices">
+            <Button variant="outline">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Invoices
+            </Button>
+          </Link>
+        }
+      >
+        {/* Error Alerts */}
+        {(usersError || subscriptionsError || createInvoiceMutation.error) && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              {usersError && "Failed to load users. "}
+              {subscriptionsError && "Failed to load subscriptions. "}
+              {createInvoiceMutation.error && "Failed to create invoice. "}
+              Please try refreshing the page or contact support if the issue persists.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Left Column - Invoice Details */}
           <div className="lg:col-span-2 space-y-6">
@@ -157,32 +279,194 @@ export default function NewInvoicePage() {
               <CardHeader>
                 <CardTitle>Customer Information</CardTitle>
                 <CardDescription>
-                  Enter the customer details for this invoice
+                  Search and select the customer for this invoice
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* User Selection */}
                 <div className="space-y-2">
-                  <Label htmlFor="userId">User ID *</Label>
-                  <Input
-                    id="userId"
-                    value={formData.userId}
-                    onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                    placeholder="Enter user ID (e.g., 60f7b4c8e4b0a7d4e8c9f2a1)"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enter the MongoDB ObjectId of the user
-                  </p>
+                  <Label htmlFor="userSearch">Customer *</Label>
+                  <div className="relative" ref={userDropdownRef}>
+                    {selectedUser ? (
+                      <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                            <span className="text-sm font-medium">
+                              {selectedUser.firstName?.[0] || selectedUser.email[0].toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium">
+                              {selectedUser.firstName && selectedUser.lastName 
+                                ? `${selectedUser.firstName} ${selectedUser.lastName}`
+                                : selectedUser.name || 'Unknown Name'
+                              }
+                            </p>
+                            <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
+                          </div>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={clearUserSelection}
+                        >
+                          Change
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="userSearch"
+                            value={userSearch}
+                            onChange={(e) => {
+                              setUserSearch(e.target.value);
+                              setShowUserDropdown(true);
+                            }}
+                            onFocus={() => setShowUserDropdown(true)}
+                            placeholder="Search by email, name..."
+                            className="pl-10"
+                            required
+                          />
+                        </div>
+                        
+                        {showUserDropdown && (
+                          <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-lg shadow-lg max-h-48 overflow-auto">
+                            {usersLoading ? (
+                              <div className="p-3">
+                                <Skeleton className="h-4 w-3/4 mb-2" />
+                                <Skeleton className="h-4 w-1/2" />
+                              </div>
+                            ) : usersError ? (
+                              <div className="p-3">
+                                <ApiErrorHandler error={usersError} />
+                              </div>
+                            ) : filteredUsers.length > 0 ? (
+                              filteredUsers.map((user) => (
+                                <div
+                                  key={user.id}
+                                  className="p-3 hover:bg-muted/50 cursor-pointer border-b last:border-0"
+                                  onClick={() => handleUserSelect(user)}
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                                      <span className="text-sm font-medium">
+                                        {user.firstName?.[0] || user.email[0].toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <p className="font-medium">
+                                        {user.firstName && user.lastName 
+                                          ? `${user.firstName} ${user.lastName}`
+                                          : user.name || 'Unknown Name'
+                                        }
+                                      </p>
+                                      <p className="text-sm text-muted-foreground">{user.email}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="p-3 text-center text-muted-foreground">
+                                {userSearch ? 'No users found' : 'Start typing to search users'}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
                 
+                {/* Subscription Selection */}
                 <div className="space-y-2">
-                  <Label htmlFor="subscriptionId">Subscription ID (Optional)</Label>
-                  <Input
-                    id="subscriptionId"
-                    value={formData.subscriptionId}
-                    onChange={(e) => setFormData({ ...formData, subscriptionId: e.target.value })}
-                    placeholder="Enter subscription ID if applicable"
-                  />
+                  <Label htmlFor="subscriptionSearch">Subscription (Optional)</Label>
+                  <div className="relative" ref={subscriptionDropdownRef}>
+                    {selectedSubscription ? (
+                      <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+                        <div className="flex items-center space-x-3">
+                          <CreditCard className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="font-medium">Subscription #{selectedSubscription.id.slice(-8)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Status: <Badge variant={selectedSubscription.status === 'active' ? 'default' : 'secondary'}>
+                                {selectedSubscription.status}
+                              </Badge>
+                            </p>
+                          </div>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={clearSubscriptionSelection}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="subscriptionSearch"
+                            value={subscriptionSearch}
+                            onChange={(e) => {
+                              setSubscriptionSearch(e.target.value);
+                              setShowSubscriptionDropdown(true);
+                            }}
+                            onFocus={() => setShowSubscriptionDropdown(true)}
+                            placeholder="Search subscriptions..."
+                            className="pl-10"
+                          />
+                        </div>
+                        
+                        {showSubscriptionDropdown && (
+                          <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-lg shadow-lg max-h-48 overflow-auto">
+                            {subscriptionsLoading ? (
+                              <div className="p-3">
+                                <Skeleton className="h-4 w-3/4 mb-2" />
+                                <Skeleton className="h-4 w-1/2" />
+                              </div>
+                            ) : subscriptionsError ? (
+                              <div className="p-3">
+                                <ApiErrorHandler error={subscriptionsError} />
+                              </div>
+                            ) : filteredSubscriptions.length > 0 ? (
+                              filteredSubscriptions.map((subscription) => (
+                                <div
+                                  key={subscription.id}
+                                  className="p-3 hover:bg-muted/50 cursor-pointer border-b last:border-0"
+                                  onClick={() => handleSubscriptionSelect(subscription)}
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                                    <div>
+                                      <p className="font-medium">Subscription #{subscription.id.slice(-8)}</p>
+                                      <p className="text-sm text-muted-foreground">
+                                        Status: <Badge variant={subscription.status === 'active' ? 'default' : 'secondary'}>
+                                          {subscription.status}
+                                        </Badge>
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="p-3 text-center text-muted-foreground">
+                                {subscriptionSearch ? 'No subscriptions found' : 'Start typing to search subscriptions'}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Link this invoice to an existing subscription (optional)
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -406,18 +690,58 @@ export default function NewInvoicePage() {
               </CardContent>
             </Card>
 
+            {/* Validation Summary */}
+            {!selectedUser && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Please select a customer to create the invoice.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {lineItems.some(item => !item.description?.trim()) && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  All line items must have a description.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {calculateTotal() <= 0 && lineItems.some(item => item.description?.trim()) && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Invoice total must be greater than $0.00.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Actions */}
             <div className="space-y-3">
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={createInvoiceMutation.isPending}
+                disabled={
+                  createInvoiceMutation.isPending || 
+                  !selectedUser || 
+                  lineItems.some(item => !item.description?.trim()) ||
+                  calculateTotal() <= 0
+                }
               >
-                {createInvoiceMutation.isPending ? 'Creating...' : 'Create Invoice'}
+                {createInvoiceMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 mr-2 border-2 border-t-transparent border-white rounded-full animate-spin" />
+                    Creating Invoice...
+                  </>
+                ) : (
+                  'Create Invoice'
+                )}
               </Button>
               
               <Link href="/dashboard/billing/invoices" className="block">
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full" disabled={createInvoiceMutation.isPending}>
                   Cancel
                 </Button>
               </Link>
@@ -425,6 +749,7 @@ export default function NewInvoicePage() {
           </div>
         </div>
       </form>
-    </BillingDashboardShell>
+      </BillingDashboardShell>
+    </ErrorBoundary>
   );
 }

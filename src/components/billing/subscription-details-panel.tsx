@@ -275,8 +275,8 @@ export function SubscriptionDetailsPanel({
                       {formatCurrency(invoice.amountDue, invoice.currency)}
                     </div>
                     <Badge variant={
-                      invoice.status === 'paid' ? 'default' :
-                      invoice.status === 'overdue' ? 'destructive' : 'outline'
+                      invoice.status === 'open' ? 'default' :
+                      invoice.status === 'void' || invoice.status === 'uncollectible' ? 'destructive' : 'outline'
                     }>
                       {invoice.status}
                     </Badge>

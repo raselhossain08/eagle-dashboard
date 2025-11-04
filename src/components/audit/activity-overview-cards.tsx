@@ -7,7 +7,8 @@ import {
   Users, 
   AlertTriangle, 
   CheckCircle2,
-  XCircle
+  XCircle,
+  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

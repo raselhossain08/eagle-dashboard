@@ -3,22 +3,33 @@
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { SupportNotesTable } from '@/components/SupportNotesTable';
 import { useSupportNotes } from '@/hooks/useSupport';
 import { useCustomer } from '@/hooks/useCustomers';
 import { useSupportStore } from '@/stores/support-store';
+import { CreateNoteModal } from '@/components/CreateNoteModal';
 
 export default function CustomerNotesPage() {
   const params = useParams();
   const customerId = params.customerId as string;
   
-  const { data: customer, isLoading: customerLoading, error } = useCustomer(customerId);
-  const { data: notesData, isLoading } = useSupportNotes(customerId);
-  const setIsCreatingNote = useSupportStore((state) => state.setIsCreatingNote);
+  const { data: customer, isLoading: customerLoading, error, refetch: refetchCustomer } = useCustomer(customerId);
+  const { data: notesData, isLoading, error: notesError, refetch: refetchNotes } = useSupportNotes(customerId);
+  const { isCreatingNote, setIsCreatingNote } = useSupportStore((state) => ({
+    isCreatingNote: state.isCreatingNote,
+    setIsCreatingNote: state.setIsCreatingNote,
+  }));
 
-  if (error) {
+  const handleRetry = () => {
+    refetchCustomer();
+    refetchNotes();
+  };
+
+  const hasError = error || notesError;
+
+  if (hasError) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -37,17 +48,31 @@ export default function CustomerNotesPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-destructive mb-4">Customer not found or failed to load</p>
-            <Link href="/dashboard/support/customers">
-              <Button>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Customers
-              </Button>
-            </Link>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+                <MessageSquare className="w-8 h-8 text-destructive" />
+              </div>
+              <h3 className="text-lg font-semibold">Failed to Load Support Notes</h3>
+              <p className="text-muted-foreground max-w-md">
+                {error?.message || notesError?.message || 'An unexpected error occurred while loading support notes.'}
+              </p>
+              <div className="flex items-center space-x-2 pt-4">
+                <Button onClick={handleRetry}>
+                  <Loader2 className={`w-4 h-4 mr-2 ${customerLoading || isLoading ? 'animate-spin' : ''}`} />
+                  Retry
+                </Button>
+                <Link href="/dashboard/support/customers">
+                  <Button variant="outline">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Customers
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -167,6 +192,14 @@ export default function CustomerNotesPage() {
           />
         </CardContent>
       </Card>
+
+      {/* Create Note Modal */}
+      <CreateNoteModal
+        customerId={customerId}
+        isOpen={isCreatingNote}
+        onClose={() => setIsCreatingNote(false)}
+        onSuccess={() => refetchNotes()}
+      />
     </div>
   );
 }

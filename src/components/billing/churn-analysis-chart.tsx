@@ -66,7 +66,8 @@ export function ChurnAnalysisChart({ data, isLoading }: ChurnAnalysisChartProps)
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={350}>
+        <div className="min-h-[350px]">
+          <ResponsiveContainer width="100%" height={350} minHeight={300}>
           <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="period" fontSize={12} />
@@ -97,6 +98,7 @@ export function ChurnAnalysisChart({ data, isLoading }: ChurnAnalysisChartProps)
             />
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );

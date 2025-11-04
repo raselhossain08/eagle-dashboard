@@ -1,5 +1,6 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { HealthMetrics, Alert } from '@/types/health';
+import { calculateDynamicHealthScore } from '@/lib/utils/health-calculations';
 
 export function useHealthOptimizations() {
   const memoizedHealthScore = useCallback((services: any[], metrics: any) => {

@@ -47,7 +47,17 @@ export default function CreateSavedReplyPage() {
       return;
     }
 
-    createReply.mutate(formData, {
+    // Map form data to CreateSavedReplyDto structure
+    const createData = {
+      name: formData.title,
+      subject: formData.title, // Using title as subject for now
+      content: formData.content,
+      category: formData.category,
+      tags: formData.tags,
+      isActive: true
+    };
+
+    createReply.mutate(createData, {
       onSuccess: () => {
         // Redirect or show success message
         window.location.href = '/dashboard/support/saved-replies';
@@ -212,9 +222,9 @@ export default function CreateSavedReplyPage() {
                 <CardTitle>Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button type="submit" className="w-full" disabled={createReply.isLoading}>
-                  <Save className="w-4 h-4 mr-2" />
-                  {createReply.isLoading ? 'Creating...' : 'Create Saved Reply'}
+                <Button type="submit" className="w-full" disabled={createReply.isPending}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {createReply.isPending ? 'Creating...' : 'Create Saved Reply'}
                 </Button>
                 <Link href="/dashboard/support/saved-replies">
                   <Button type="button" variant="outline" className="w-full">

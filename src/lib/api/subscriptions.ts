@@ -1,4 +1,6 @@
 // lib/api/subscriptions.ts
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
+
 export interface Subscription {
   id: string;
   userId: string;
@@ -79,7 +81,7 @@ export class SubscriptionsService {
   private static baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   private static getAuthHeaders() {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    const token = TokenStorageService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),

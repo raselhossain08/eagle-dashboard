@@ -375,19 +375,19 @@ export default function GrowthAnalyticsPage() {
                             <td className="border border-gray-200 p-2 font-medium">{cohort.cohort}</td>
                             <td className="border border-gray-200 p-2 text-center">{cohort.size}</td>
                             <td className="border border-gray-200 p-2 text-center">
-                              {cohort.retention?.[0]?.toFixed(1) || '100.0'}%
+                              {cohort.retentionData?.[0]?.percentage?.toFixed(1) || '100.0'}%
                             </td>
                             <td className="border border-gray-200 p-2 text-center">
-                              {cohort.retention?.[1]?.toFixed(1) || '0'}%
+                              {cohort.retentionData?.[1]?.percentage?.toFixed(1) || '0'}%
                             </td>
                             <td className="border border-gray-200 p-2 text-center">
-                              {cohort.retention?.[3]?.toFixed(1) || '0'}%
+                              {cohort.retentionData?.[3]?.percentage?.toFixed(1) || '0'}%
                             </td>
                             <td className="border border-gray-200 p-2 text-center">
-                              {cohort.retention?.[6]?.toFixed(1) || '0'}%
+                              {cohort.retentionData?.[6]?.percentage?.toFixed(1) || '0'}%
                             </td>
                             <td className="border border-gray-200 p-2 text-center">
-                              {cohort.retention?.[11]?.toFixed(1) || '0'}%
+                              {cohort.retentionData?.[11]?.percentage?.toFixed(1) || '0'}%
                             </td>
                           </tr>
                         )) || (

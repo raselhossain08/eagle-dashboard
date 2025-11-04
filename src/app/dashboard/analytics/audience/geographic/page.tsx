@@ -39,6 +39,39 @@ const countryCodeMap: Record<string, string> = {
   "Norway": "NO"
 };
 
+// Region mapping for countries
+const countryToRegionMap: Record<string, string> = {
+  "United States": "North America",
+  "Canada": "North America",
+  "Mexico": "North America",
+  "United Kingdom": "Europe", 
+  "Germany": "Europe",
+  "France": "Europe",
+  "Italy": "Europe",
+  "Spain": "Europe",
+  "Netherlands": "Europe",
+  "Switzerland": "Europe",
+  "Belgium": "Europe",
+  "Austria": "Europe",
+  "Sweden": "Europe",
+  "Norway": "Europe",
+  "Japan": "Asia",
+  "China": "Asia",
+  "India": "Asia",
+  "South Korea": "Asia",
+  "Singapore": "Asia",
+  "Thailand": "Asia",
+  "Russia": "Asia",
+  "Australia": "Oceania",
+  "New Zealand": "Oceania",
+  "Brazil": "South America",
+  "Argentina": "South America",
+  "Chile": "South America",
+  "South Africa": "Africa",
+  "Nigeria": "Africa",
+  "Egypt": "Africa"
+};
+
 // Geographic data type
 interface GeographicData {
   country: string;
@@ -152,6 +185,7 @@ export default function GeographicPage() {
       console.log('✅ Using real geographic data from backend:', geographicData.length, 'countries');
       return geographicData.map((item, index) => ({
         ...item,
+        region: countryToRegionMap[item.country] || 'Other',
         code: countryCodeMap[item.country] || 'XX',
         fill: ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"][index % 6]
       }));
@@ -162,9 +196,9 @@ export default function GeographicPage() {
 
   // Transform for donut chart
   const regionChartData = useMemo(() => {
-    if (geographicData && geographicData.length > 0) {
+    if (transformedData && transformedData.length > 0) {
       const regionTotals: Record<string, number> = {};
-      geographicData.forEach(item => {
+      transformedData.forEach((item) => {
         regionTotals[item.region] = (regionTotals[item.region] || 0) + item.sessions;
       });
       
@@ -176,7 +210,7 @@ export default function GeographicPage() {
       }));
     }
     return [];
-  }, [geographicData]);
+  }, [transformedData]);
 
   // Transform for city chart - derive from geographicData
   const cityData = useMemo(() => {

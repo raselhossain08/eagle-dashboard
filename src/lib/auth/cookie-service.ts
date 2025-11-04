@@ -144,7 +144,7 @@ export class AuthCookieService extends CookieService {
     // Check our standard cookie name first
     let token = this.getCookie(this.ACCESS_TOKEN_KEY);
     
-    // If not found, check for other common cookie names
+    // If not found, check for other common cookie names (including backend set cookie)
     if (!token) {
       const alternativeNames = ['accessToken', 'access_token', 'jwt_token', 'token'];
       for (const name of alternativeNames) {
@@ -154,6 +154,11 @@ export class AuthCookieService extends CookieService {
           break;
         }
       }
+    }
+    
+    // Debug log all available cookies when no token found
+    if (!token) {
+      console.log('🔍 No access token found. Available cookies:', this.getAllCookies());
     }
     
     return token;

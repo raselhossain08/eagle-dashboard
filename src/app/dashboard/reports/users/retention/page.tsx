@@ -5,12 +5,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateRangePicker } from '@/components/reports/DateRangePicker';
 import { ExportControls } from '@/components/reports/ExportControls';
 import { DataTable } from '@/components/reports/DataTable';
-import { useUserRetentionReport } from '@/hooks/useReports';
+import { useUserRetentionReport, useExportUserReport } from '@/hooks/useReports';
 import { addDays, format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, RefreshCw, TrendingUp, TrendingDown, Activity, Users, BarChart3 } from 'lucide-react';
+import { LoadingSpinner } from '@/components/loading-spinner';
+
+import { RetentionErrorBoundary } from './error-boundary';
 
 export default function UserRetentionPage() {
+  return (
+    <RetentionErrorBoundary>
+      <UserRetentionContent />
+    </RetentionErrorBoundary>
+  );
+}
+
+function UserRetentionContent() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -365),
     to: new Date(),
@@ -24,10 +38,29 @@ export default function UserRetentionPage() {
     metrics: ['retention', 'cohorts'],
   };
 
-  const { data: retentionData, isLoading } = useUserRetentionReport(retentionParams);
+  const { 
+    data: retentionData, 
+    isLoading, 
+    error,
+    refetch 
+  } = useUserRetentionReport(retentionParams);
+  
+  const exportMutation = useExportUserReport();
 
-  const handleExport = (format: any) => {
-    console.log('Exporting retention report:', format);
+  const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
+    try {
+      await exportMutation.mutateAsync({
+        reportType: 'retention',
+        params: retentionParams,
+        format
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
+
+  const handleRefresh = () => {
+    refetch();
   };
 
   const tableColumns = [
@@ -57,6 +90,14 @@ export default function UserRetentionPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <Select value={cohortType} onValueChange={(value: 'weekly' | 'monthly') => setCohortType(value)}>
             <SelectTrigger className="w-32">
               <SelectValue />
@@ -71,64 +112,158 @@ export default function UserRetentionPage() {
         </div>
       </div>
 
+      {/* Real-time Data Status */}
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${error ? 'bg-red-500' : 'bg-green-500'}`} />
+          <span>{error ? 'Connection Error' : 'Live Data'}</span>
+        </div>
+        <span>•</span>
+        <span>Cohort Type: {cohortType}</span>
+        <span>•</span>
+        <span>Period: {dateRange?.from && dateRange?.to ? 
+          `${format(dateRange.from, 'MMM dd, yyyy')} - ${format(dateRange.to, 'MMM dd, yyyy')}` : 
+          'Last 365 days'
+        }</span>
+      </div>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Failed to load retention data: {error.message}
+            <Button 
+              variant="link" 
+              className="p-0 h-auto ml-2"
+              onClick={handleRefresh}
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-6 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Week 1 Retention</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Activity className="w-4 h-4 text-blue-500" />
+              Week 1 Retention
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoading ? '...' : retentionData?.metrics ? 
-                `${retentionData.metrics.avgRetention1Week.toFixed(1)}%` : '0%'}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Average across cohorts
-            </p>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : error ? (
+              <div className="text-xl font-bold text-muted-foreground">--</div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  {retentionData?.metrics ? 
+                    `${retentionData.metrics.avgRetention1Week.toFixed(1)}%` : '0%'}
+                </div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <TrendingUp className="w-3 h-3 mr-1 text-blue-500" />
+                  Average across cohorts
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Month 1 Retention</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-green-500" />
+              Month 1 Retention
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoading ? '...' : retentionData?.metrics ? 
-                `${retentionData.metrics.avgRetention1Month.toFixed(1)}%` : '0%'}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              30-day retention
-            </p>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : error ? (
+              <div className="text-xl font-bold text-muted-foreground">--</div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  {retentionData?.metrics ? 
+                    `${retentionData.metrics.avgRetention1Month.toFixed(1)}%` : '0%'}
+                </div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  {retentionData?.metrics?.avgRetention1Month >= 45 ? 
+                    <TrendingUp className="w-3 h-3 mr-1 text-green-500" /> :
+                    <TrendingDown className="w-3 h-3 mr-1 text-red-500" />
+                  }
+                  30-day retention
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Month 3 Retention</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Activity className="w-4 h-4 text-purple-500" />
+              Month 3 Retention
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoading ? '...' : retentionData?.metrics ? 
-                `${retentionData.metrics.avgRetention3Months.toFixed(1)}%` : '0%'}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              90-day retention
-            </p>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : error ? (
+              <div className="text-xl font-bold text-muted-foreground">--</div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  {retentionData?.metrics ? 
+                    `${retentionData.metrics.avgRetention3Months.toFixed(1)}%` : '0%'}
+                </div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  {retentionData?.metrics?.avgRetention3Months >= 25 ? 
+                    <TrendingUp className="w-3 h-3 mr-1 text-green-500" /> :
+                    <TrendingDown className="w-3 h-3 mr-1 text-orange-500" />
+                  }
+                  90-day retention
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Avg Cohort Size</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Users className="w-4 h-4 text-orange-500" />
+              Avg Cohort Size
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoading ? '...' : retentionData?.metrics ? 
-                Math.round(retentionData.metrics.avgCohortSize).toLocaleString() : '0'}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Users per cohort
-            </p>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : error ? (
+              <div className="text-xl font-bold text-muted-foreground">--</div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  {retentionData?.metrics ? 
+                    Math.round(retentionData.metrics.avgCohortSize).toLocaleString() : '0'}
+                </div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <Users className="w-3 h-3 mr-1 text-orange-500" />
+                  Users per cohort
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -222,19 +357,37 @@ export default function UserRetentionPage() {
             <CardTitle>Retention Insights</CardTitle>
             <CardDescription>Key findings and trends</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
+          <CardContent className="space-y-3 text-sm">
             {isLoading ? (
-              <p>Loading insights...</p>
+              <div className="space-y-2">
+                <div className="h-4 w-full bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                <div className="h-4 w-3/4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                <div className="h-4 w-1/2 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            ) : error ? (
+              <p className="text-muted-foreground">Unable to load insights</p>
             ) : retentionData?.cohorts && retentionData.cohorts.length > 0 ? (
               <>
-                <p>• Best performing cohort: {retentionData.cohorts.sort((a: any, b: any) => (b.week12 || 0) - (a.week12 || 0))[0]?.cohort}</p>
-                <p>• Average dropoff Week 1-2: {retentionData.metrics ? 
-                  Math.round(retentionData.metrics.avgRetention1Week - retentionData.metrics.avgRetention1Month) : 0}%</p>
-                <p>• Cohort type: {cohortType} analysis</p>
-                <p>• Total cohorts analyzed: {retentionData.cohorts.length}</p>
+                <div className="flex items-start gap-2">
+                  <TrendingUp className="w-4 h-4 mt-0.5 text-green-500" />
+                  <span>Best cohort: <strong>{retentionData.cohorts.sort((a: any, b: any) => (b.week12 || 0) - (a.week12 || 0))[0]?.cohort}</strong> ({(retentionData.cohorts.sort((a: any, b: any) => (b.week12 || 0) - (a.week12 || 0))[0]?.week12 || 0).toFixed(1)}% at 3 months)</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <BarChart3 className="w-4 h-4 mt-0.5 text-blue-500" />
+                  <span>Avg dropoff (Week 1-Month 1): <strong>{retentionData.metrics ? 
+                    Math.abs(retentionData.metrics.avgRetention1Week - retentionData.metrics.avgRetention1Month).toFixed(1) : 0}%</strong></span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Activity className="w-4 h-4 mt-0.5 text-purple-500" />
+                  <span>Analysis period: <strong>{cohortType}</strong> cohorts ({retentionData.cohorts.length} total)</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Users className="w-4 h-4 mt-0.5 text-orange-500" />
+                  <span>Total users analyzed: <strong>{retentionData.cohorts.reduce((sum: number, c: any) => sum + c.size, 0).toLocaleString()}</strong></span>
+                </div>
               </>
             ) : (
-              <p>No insights available</p>
+              <p className="text-muted-foreground">No retention insights available for the selected period</p>
             )}
           </CardContent>
         </Card>
@@ -244,21 +397,51 @@ export default function UserRetentionPage() {
             <CardTitle>Improvement Opportunities</CardTitle>
             <CardDescription>Actionable recommendations</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
+          <CardContent className="space-y-3 text-sm">
             {isLoading ? (
-              <p>Loading recommendations...</p>
+              <div className="space-y-2">
+                <div className="h-4 w-full bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                <div className="h-4 w-4/5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                <div className="h-4 w-2/3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            ) : error ? (
+              <p className="text-muted-foreground">Unable to load recommendations</p>
             ) : retentionData?.metrics ? (
               <>
-                <p>• {retentionData.metrics.avgRetention1Week < 70 ? 
-                  'Focus on week 1 onboarding experience' : 'Week 1 retention is strong'}</p>
-                <p>• {retentionData.metrics.avgRetention1Month < 45 ? 
-                  'Improve month 1 engagement features' : 'Month 1 retention performing well'}</p>
-                <p>• {retentionData.metrics.avgRetention3Months < 25 ? 
-                  'Enhance long-term value proposition' : 'Good long-term retention'}</p>
-                <p>• Consider personalized re-engagement campaigns</p>
+                <div className="flex items-start gap-2">
+                  {retentionData.metrics.avgRetention1Week < 70 ? 
+                    <AlertTriangle className="w-4 h-4 mt-0.5 text-orange-500" /> :
+                    <TrendingUp className="w-4 h-4 mt-0.5 text-green-500" />
+                  }
+                  <span><strong>Week 1:</strong> {retentionData.metrics.avgRetention1Week < 70 ? 
+                    'Optimize onboarding flow and initial user experience' : 
+                    'Strong week 1 retention - maintain current strategies'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  {retentionData.metrics.avgRetention1Month < 45 ? 
+                    <AlertTriangle className="w-4 h-4 mt-0.5 text-red-500" /> :
+                    <TrendingUp className="w-4 h-4 mt-0.5 text-green-500" />
+                  }
+                  <span><strong>Month 1:</strong> {retentionData.metrics.avgRetention1Month < 45 ? 
+                    'Implement engagement features and habit-forming activities' : 
+                    'Good month 1 performance - focus on long-term value'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  {retentionData.metrics.avgRetention3Months < 25 ? 
+                    <AlertTriangle className="w-4 h-4 mt-0.5 text-red-500" /> :
+                    <TrendingUp className="w-4 h-4 mt-0.5 text-blue-500" />
+                  }
+                  <span><strong>Month 3:</strong> {retentionData.metrics.avgRetention3Months < 25 ? 
+                    'Strengthen value proposition and add retention triggers' : 
+                    'Excellent long-term retention - scale successful tactics'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Activity className="w-4 h-4 mt-0.5 text-purple-500" />
+                  <span><strong>Strategy:</strong> Implement {cohortType} re-engagement campaigns for at-risk segments</span>
+                </div>
               </>
             ) : (
-              <p>No recommendations available</p>
+              <p className="text-muted-foreground">No recommendations available for the selected period</p>
             )}
           </CardContent>
         </Card>

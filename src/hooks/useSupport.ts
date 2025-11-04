@@ -93,3 +93,33 @@ export const useImpersonationHistory = (params?: any) => {
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 };
+
+// Impersonation Stats
+export const useImpersonationStats = () => {
+  return useQuery({
+    queryKey: ['support', 'impersonation', 'stats'],
+    queryFn: () => supportService.getImpersonationStats(),
+    refetchInterval: 60000, // 1 minute
+  });
+};
+
+// Impersonation Session Detail
+export const useImpersonationSessionDetail = (sessionId: string) => {
+  return useQuery({
+    queryKey: ['support', 'impersonation', 'session', sessionId],
+    queryFn: () => supportService.getImpersonationSessionDetail(sessionId),
+    enabled: !!sessionId,
+  });
+};
+
+// Force End Impersonation
+export const useForceEndImpersonation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ logId, reason }: { logId: string; reason: string }) => 
+      supportService.forceEndImpersonation(logId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['support', 'impersonation'] });
+    },
+  });
+};

@@ -50,6 +50,25 @@ export interface CohortAnalysisData {
   cohorts: CohortData[];
 }
 
+export interface CustomerCohortData {
+  period: string;
+  customers: number;
+  retention: Record<number, number>;
+  acquisitionChannel?: string;
+  averageLifetime?: number;
+  totalRevenue?: number;
+}
+
+export interface CohortStatistics {
+  totalCohorts: number;
+  avgRetention: number;
+  latestCohortSize: number;
+  latestCohortPeriod: string;
+  totalCustomers: number;
+  bestPerformingCohort: CustomerCohortData | null;
+  retentionTrend: 'Improving' | 'Declining' | 'Stable' | 'No data';
+}
+
 export interface DashboardStats {
   activeSubscriptions: number;
   monthlyRevenue: number;

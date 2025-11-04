@@ -3,78 +3,94 @@
 
 import { DiscountsDashboardShell } from '@/components/discounts/discounts-dashboard-shell';
 import { FraudDetectionPanel } from '@/components/discounts/fraud-detection-panel';
+import { RealTimeFraudAlerts } from '@/components/discounts/real-time-fraud-alerts';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Download, Shield, AlertTriangle } from 'lucide-react';
-import { useSuspiciousRedemptions, useBlockSuspiciousActivity, useExportRedemptions } from '@/hooks/use-redemptions';
+import { useEnhancedFraudDetection, useExportFraudReport } from '@/hooks/use-fraud-detection';
 import { toast } from 'sonner';
 
 export default function FraudDetectionPage() {
-  // Fetch suspicious redemptions data
-  const { 
-    data: suspiciousActivity, 
-    isLoading, 
-    error, 
-    refetch 
-  } = useSuspiciousRedemptions();
+  // Enhanced fraud detection with real-time capabilities
+  const {
+    suspiciousActivities,
+    fraudMetrics,
+    realTimeAlerts,
+    isLoading,
+    error,
+    blockActivity,
+    startInvestigation,
+    exportReport,
+    isBlocking,
+    isStartingInvestigation,
+    isExporting,
+    refetchActivities
+  } = useEnhancedFraudDetection({
+    autoRefresh: true,
+    enableRealTimeAlerts: true
+  });
 
-  // Mutations
-  const blockActivity = useBlockSuspiciousActivity();
-  const exportRedemptions = useExportRedemptions();
-
-  const handleInvestigate = (activity: any) => {
-    console.log('Investigating:', activity);
-    // You could open a detailed investigation modal here
-    toast.info('Investigation started for suspicious activity');
+  const handleInvestigate = async (activity: any) => {
+    try {
+      await startInvestigation({
+        activityId: activity.id,
+        priority: activity.riskLevel === 'high' ? 'high' : 'medium',
+        notes: `Investigating ${activity.type} activity with fraud score ${activity.fraudScore}`
+      });
+    } catch (error: any) {
+      console.error('Investigation failed:', error);
+    }
   };
 
   const handleBlock = async (criteria: any) => {
     try {
-      await blockActivity.mutateAsync(criteria);
-      toast.success('Suspicious activity blocked successfully');
-      refetch(); // Refresh the data
+      await blockActivity({
+        type: criteria.type,
+        pattern: criteria.pattern,
+        riskLevel: criteria.riskLevel,
+        reason: `Blocking ${criteria.type} pattern detected by ML model`
+      });
     } catch (error: any) {
-      toast.error('Failed to block suspicious activity');
       console.error('Block failed:', error);
     }
   };
 
   const handleExport = async () => {
     try {
-      const blob = await exportRedemptions.mutateAsync({
+      await exportReport({
         startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
         endDate: new Date(),
         format: 'csv',
-        filters: { search: 'suspicious' } // Filter for suspicious redemptions
+        includeDetails: true,
+        riskLevels: ['medium', 'high']
       });
-      
-      // Create download link
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `suspicious-redemptions-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      toast.success('Suspicious activity report exported successfully');
     } catch (error: any) {
-      toast.error('Failed to export report');
       console.error('Export failed:', error);
     }
   };
 
   const actions = (
-    <Button 
-      variant="outline" 
-      size="sm"
-      onClick={handleExport}
-      disabled={isLoading || exportRedemptions.isPending}
-    >
-      <Download className="mr-2 h-4 w-4" />
-      {exportRedemptions.isPending ? 'Exporting...' : 'Export Report'}
-    </Button>
+    <div className="flex space-x-2">
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={handleExport}
+        disabled={isLoading || isExporting}
+      >
+        <Download className="mr-2 h-4 w-4" />
+        {isExporting ? 'Exporting...' : 'Export Report'}
+      </Button>
+      {realTimeAlerts.length > 0 && (
+        <Button 
+          variant="destructive" 
+          size="sm"
+          className="animate-pulse"
+        >
+          <AlertTriangle className="mr-2 h-4 w-4" />
+          {realTimeAlerts.length} Live Alerts
+        </Button>
+      )}
+    </div>
   );
 
   return (
@@ -109,26 +125,75 @@ export default function FraudDetectionPage() {
         </div>
       )}
 
-      {/* Fraud Detection Panel */}
-      {suspiciousActivity && (
-        <FraudDetectionPanel
-          suspiciousActivity={suspiciousActivity}
-          onInvestigate={handleInvestigate}
-          onBlock={handleBlock}
-          isBlocking={blockActivity.isPending}
-        />
-      )}
+      {/* Real-time Fraud Metrics Dashboard */}
+      {fraudMetrics && (
+        <div className="grid gap-4 md:grid-cols-4 mb-6">
+          <div className="bg-gradient-to-r from-red-50 to-red-100 p-4 rounded-lg border border-red-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-red-600">High Risk Alerts</p>
+                <p className="text-2xl font-bold text-red-700">{fraudMetrics.highRiskAlerts}</p>
+              </div>
+              <AlertTriangle className="h-8 w-8 text-red-500" />
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 p-4 rounded-lg border border-yellow-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-yellow-600">Medium Risk</p>
+                <p className="text-2xl font-bold text-yellow-700">{fraudMetrics.mediumRiskAlerts}</p>
+              </div>
+              <Shield className="h-8 w-8 text-yellow-500" />
+            </div>
+          </div>
 
-      {/* No Suspicious Activity */}
-      {!isLoading && suspiciousActivity && suspiciousActivity.length === 0 && (
-        <div className="text-center p-8">
-          <Shield className="h-12 w-12 mx-auto text-green-500 mb-4" />
-          <h3 className="text-lg font-medium mb-2">All Clear</h3>
-          <p className="text-muted-foreground">
-            No suspicious redemption activity detected in the recent period.
-          </p>
+          <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-600">Prevented Loss</p>
+                <p className="text-2xl font-bold text-green-700">${fraudMetrics.preventedLoss.toLocaleString()}</p>
+              </div>
+              <Shield className="h-8 w-8 text-green-500" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-600">Accuracy Rate</p>
+                <p className="text-2xl font-bold text-blue-700">{fraudMetrics.accuracyRate}%</p>
+              </div>
+              <Shield className="h-8 w-8 text-blue-500" />
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Main Content Grid */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Fraud Detection Panel - Takes 2/3 of the space */}
+        <div className="lg:col-span-2">
+          <FraudDetectionPanel
+            suspiciousActivity={suspiciousActivities}
+            onInvestigate={handleInvestigate}
+            onBlock={handleBlock}
+            isLoading={isLoading}
+            isBlocking={isBlocking || isStartingInvestigation}
+          />
+        </div>
+
+        {/* Real-time Alerts Sidebar - Takes 1/3 of the space */}
+        <div className="lg:col-span-1">
+          <RealTimeFraudAlerts
+            onAlertClick={(alert) => {
+              console.log('Alert clicked:', alert);
+              // Could open detailed view modal here
+            }}
+            maxHeight="600px"
+          />
+        </div>
+      </div>
     </DiscountsDashboardShell>
   );
 }

@@ -1,3 +1,5 @@
+import { ServiceStatus, HealthStatus } from '@/types/health';
+
 export function calculateHealthScore(services: ServiceStatus[]): number {
   const weights = {
     database: 0.3,

@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { User } from '@/types/users';
-import { useUpdateUser } from '@/lib/hooks/useUsers';
+import { useUpdateUser } from '@/hooks/use-mutations';
 import { Edit, Save, X, Upload, MapPin, Globe } from 'lucide-react';
 
 interface UserProfileProps {
@@ -92,7 +92,7 @@ export function UserProfile({ user }: UserProfileProps) {
                   <X className="h-4 w-4 mr-2" />
                   Cancel
                 </Button>
-                <Button onClick={handleSave} disabled={updateUserMutation.isLoading}>
+                <Button onClick={handleSave} disabled={updateUserMutation.isPending}>
                   <Save className="h-4 w-4 mr-2" />
                   Save Changes
                 </Button>
@@ -257,15 +257,12 @@ export function UserProfile({ user }: UserProfileProps) {
             </Label>
             <Switch
               id="email-notifications"
-              checked={formData.preferences.notifications.email}
+              checked={formData.preferences.emailNotifications}
               onCheckedChange={(checked) => setFormData(prev => ({
                 ...prev,
                 preferences: {
                   ...prev.preferences,
-                  notifications: {
-                    ...prev.preferences.notifications,
-                    email: checked
-                  }
+                  emailNotifications: checked
                 }
               }))}
               disabled={!isEditing}
@@ -281,44 +278,19 @@ export function UserProfile({ user }: UserProfileProps) {
             </Label>
             <Switch
               id="sms-notifications"
-              checked={formData.preferences.notifications.sms}
+              checked={formData.preferences.smsNotifications}
               onCheckedChange={(checked) => setFormData(prev => ({
                 ...prev,
                 preferences: {
                   ...prev.preferences,
-                  notifications: {
-                    ...prev.preferences.notifications,
-                    sms: checked
-                  }
+                  smsNotifications: checked
                 }
               }))}
               disabled={!isEditing}
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label htmlFor="push-notifications" className="flex flex-col space-y-1">
-              <span>Push Notifications</span>
-              <span className="font-normal text-sm text-muted-foreground">
-                Receive push notifications
-              </span>
-            </Label>
-            <Switch
-              id="push-notifications"
-              checked={formData.preferences.notifications.push}
-              onCheckedChange={(checked) => setFormData(prev => ({
-                ...prev,
-                preferences: {
-                  ...prev.preferences,
-                  notifications: {
-                    ...prev.preferences.notifications,
-                    push: checked
-                  }
-                }
-              }))}
-              disabled={!isEditing}
-            />
-          </div>
+          {/* Push notifications not implemented in UserPreferences interface */}
 
           <div className="grid gap-4 md:grid-cols-2 pt-4">
             <div className="space-y-2">

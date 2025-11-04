@@ -37,6 +37,12 @@ export interface SearchAnalytics {
     last30d: number;
   };
   peakSearchHours: Array<{ hour: number; count: number }>;
+  resourceCounts?: {
+    totalUsers: number;
+    totalSubscribers: number;
+    totalContracts: number;
+    activeUsers: number;
+  };
 }
 
 export interface SearchFilters {
@@ -55,7 +61,7 @@ export interface SearchFilters {
 }
 
 class SearchService {
-  private baseUrl = '/search';
+  private baseUrl = '/api/search';
 
   async searchUsers(params: {
     query: string;

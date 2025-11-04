@@ -1,3 +1,12 @@
+import { create } from 'zustand';
+
+interface NotificationPreference {
+  email: boolean;
+  sms: boolean;
+  browser: boolean;
+  criticalOnly: boolean;
+}
+
 interface HealthSettings {
   maintenanceMode: boolean;
   maintenanceStart?: string;

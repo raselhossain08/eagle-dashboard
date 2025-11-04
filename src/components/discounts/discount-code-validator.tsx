@@ -29,12 +29,12 @@ export function DiscountCodeValidator({
 }: DiscountCodeValidatorProps) {
   const [formData, setFormData] = useState<ValidateDiscountDto>({
     code: '',
-    orderAmount: 100,
+    orderAmount: 0,
     currency: 'USD',
     planId: '',
-    productId: '',
-    country: '',
-    email: ''
+    productIds: [],
+    customerCountry: '',
+    customerEmail: ''
   });
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
 
@@ -147,8 +147,8 @@ export function DiscountCodeValidator({
                 <Label htmlFor="country">Country (Optional)</Label>
                 <Input
                   id="country"
-                  value={formData.country}
-                  onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
+                  value={formData.customerCountry || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, customerCountry: e.target.value }))}
                   placeholder="US"
                 />
               </div>
@@ -157,8 +157,8 @@ export function DiscountCodeValidator({
                 <Input
                   id="email"
                   type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                  value={formData.customerEmail || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, customerEmail: e.target.value }))}
                   placeholder="customer@example.com"
                 />
               </div>

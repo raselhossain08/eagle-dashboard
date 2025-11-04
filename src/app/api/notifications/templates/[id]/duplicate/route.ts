@@ -4,12 +4,13 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params
     const body = await request.json();
     
-    const response = await fetch(`${API_BASE_URL}/notifications/templates/${params.id}/duplicate`, {
+    const response = await fetch(`${API_BASE_URL}/notifications/templates/${resolvedParams.id}/duplicate`, {
       method: 'POST',
       headers: {
         'Authorization': request.headers.get('Authorization') || '',

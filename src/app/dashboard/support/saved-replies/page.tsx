@@ -14,7 +14,7 @@ export default function SavedRepliesPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredReplies = savedReplies?.filter(reply =>
-    reply.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    reply.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     reply.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
     reply.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -81,7 +81,7 @@ export default function SavedRepliesPage() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-lg mb-2">{reply.title}</CardTitle>
+                    <CardTitle className="text-lg mb-2">{reply.name}</CardTitle>
                     <CardDescription className="line-clamp-2">
                       {reply.content}
                     </CardDescription>
@@ -92,7 +92,7 @@ export default function SavedRepliesPage() {
                     {reply.category}
                   </Badge>
                   <Badge variant="outline" className="text-xs">
-                    Used {reply.useCount} times
+                    Used {reply.usageCount} times
                   </Badge>
                 </div>
               </CardHeader>

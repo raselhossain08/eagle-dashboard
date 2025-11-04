@@ -246,7 +246,7 @@ export function ContractCreationWizard({
                       </p>
                       <div className="flex flex-wrap gap-1 sm:gap-2 mt-2">
                         <Badge variant="outline" className="text-xs">
-                          {selectedTemplate.category}
+                          {selectedTemplate.type}
                         </Badge>
                         <Badge variant="outline" className="text-xs">
                           {selectedTemplate.variables.length} variables

@@ -1,6 +1,7 @@
 // lib/api/discounts.service.ts
 import { apiClient } from './api-client';
 import { Discount, CreateDiscountDto, ValidateDiscountDto, ValidationResult, DiscountsOverviewData } from '@/types/discounts';
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
 
 export interface DiscountsResponse {
   data: Discount[];
@@ -103,7 +104,7 @@ export class DiscountsService {
     const url = `${this.baseUrl}/export${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
     
     // Get auth token
-    const token = localStorage.getItem('access_token');
+    const token = TokenStorageService.getAccessToken();
     if (!token) {
       throw new Error('Authentication required');
     }

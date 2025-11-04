@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useSearchStore } from '@/lib/stores/search-store';
+import { useSearchStore } from '@/stores/search-store';
 import { Clock, Trash2, Search } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 

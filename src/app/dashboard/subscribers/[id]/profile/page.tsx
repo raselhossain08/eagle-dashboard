@@ -10,6 +10,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, 
@@ -20,7 +33,17 @@ import {
   MapPin,
   User,
   Shield,
-  Bell
+  Bell,
+  CheckCircle,
+  XCircle,
+  Clock,
+  AlertCircle,
+  RefreshCw,
+  History,
+  DollarSign,
+  Calendar,
+  Settings,
+  Activity
 } from 'lucide-react';
 import Link from 'next/link';
 import { 
@@ -28,13 +51,33 @@ import {
   useUpdateSubscriberProfile, 
   useUpdateKycStatus 
 } from '@/hooks/useSubscriberProfile';
+import { ApiErrorHandler } from '@/components/api-error-handler';
+import { RoleBasedAccess } from '@/components/role-based-access';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { useState, useEffect } from 'react';
 
 export default function ProfileManagementPage() {
   const params = useParams();
   const id = params.id as string;
   
-  const { data: profile, isLoading } = useSubscriberProfile(id);
+  // Mock user role - replace with actual auth
+  const userRole = 'super_admin';
+  const requiredRoles = ['super_admin', 'admin', 'support'];
+  
+  // State management
+  const [activeTab, setActiveTab] = useState('personal');
+  const [isKycDialogOpen, setIsKycDialogOpen] = useState(false);
+  const [selectedKycStatus, setSelectedKycStatus] = useState<'verified' | 'rejected' | 'pending'>('pending');
+  const [kycNotes, setKycNotes] = useState('');
+  
+  // API hooks with proper error handling
+  const { 
+    data: profile, 
+    isLoading: profileLoading, 
+    error: profileError, 
+    refetch: refetchProfile 
+  } = useSubscriberProfile(id);
+  
   const updateProfile = useUpdateSubscriberProfile();
   const updateKyc = useUpdateKycStatus();
 
@@ -81,62 +124,162 @@ export default function ProfileManagementPage() {
     }
   }, [profile]);
 
-  if (isLoading && !profile) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
-          <div className="space-y-2">
-            <div className="h-6 w-48 bg-muted rounded animate-pulse" />
-            <div className="h-4 w-32 bg-muted rounded animate-pulse" />
-          </div>
-        </div>
-        <div className="grid gap-6">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <Card key={index}>
-              <CardHeader>
-                <div className="h-5 w-32 bg-muted rounded animate-pulse" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="space-y-2">
-                      <div className="h-4 w-24 bg-muted rounded animate-pulse" />
-                      <div className="h-10 w-full bg-muted rounded animate-pulse" />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+  // Loading skeleton component
+  const LoadingSkeleton = () => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Skeleton className="h-12 w-12 rounded-full" />
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-32" />
         </div>
       </div>
+      <div className="grid gap-6">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Card key={index}>
+            <CardHeader>
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-48" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Early return for loading state
+  if (profileLoading && !profile) {
+    return (
+      <ErrorBoundary>
+        <RoleBasedAccess requiredRoles={requiredRoles} userRole={userRole}>
+          <div className="container mx-auto px-4 py-8">
+            <LoadingSkeleton />
+          </div>
+        </RoleBasedAccess>
+      </ErrorBoundary>
+    );
+  }
+
+  // Error state
+  if (profileError) {
+    return (
+      <ErrorBoundary>
+        <RoleBasedAccess requiredRoles={requiredRoles} userRole={userRole}>
+          <div className="container mx-auto px-4 py-8">
+            <ApiErrorHandler 
+              error={profileError}
+              onRetry={refetchProfile}
+              variant="page"
+              fallbackMessage="Failed to load subscriber profile"
+            />
+          </div>
+        </RoleBasedAccess>
+      </ErrorBoundary>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <ErrorBoundary>
+        <RoleBasedAccess requiredRoles={requiredRoles} userRole={userRole}>
+          <div className="container mx-auto px-4 py-8">
+            <div className="flex flex-col items-center justify-center py-12">
+              <XCircle className="h-16 w-16 text-muted-foreground mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Subscriber Not Found</h2>
+              <p className="text-muted-foreground text-center mb-6">
+                The subscriber profile you're looking for could not be found or you don't have permission to view it.
+              </p>
+              <div className="flex gap-3">
+                <Link href="/dashboard/subscribers">
+                  <Button variant="outline">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Subscribers
+                  </Button>
+                </Link>
+                <Button onClick={() => refetchProfile()}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          </div>
+        </RoleBasedAccess>
+      </ErrorBoundary>
     );
   }
 
   const handleSave = async () => {
     try {
+      // Validate required fields
+      if (!formData.firstName.trim() || !formData.lastName.trim()) {
+        toast.error("First name and last name are required.");
+        return;
+      }
+
+      if (formData.phone && !/^\+?[\d\s-()]+$/.test(formData.phone)) {
+        toast.error("Please enter a valid phone number.");
+        return;
+      }
+
       await updateProfile.mutateAsync({
         subscriberId: id,
         data: formData
       });
-      toast.success("Profile information has been successfully updated.");
-    } catch (error) {
+      
+      toast.success("Profile information has been successfully updated.", {
+        description: `Updated profile for ${formData.firstName} ${formData.lastName}`,
+      });
+      
+      // Refetch profile to ensure UI is in sync
+      refetchProfile();
+    } catch (error: any) {
       console.error('Failed to update profile:', error);
-      toast.error("Failed to update profile. Please try again.");
+      const errorMessage = error?.response?.data?.message || error?.message || "Failed to update profile";
+      toast.error("Profile Update Failed", {
+        description: errorMessage,
+      });
     }
   };
 
-  const handleKycUpdate = async (status: 'verified' | 'rejected' | 'pending') => {
+  const handleKycUpdate = async (status: 'verified' | 'rejected' | 'pending', notes?: string) => {
     try {
       await updateKyc.mutateAsync({
         subscriberId: id,
-        data: { status }
+        data: { 
+          status,
+          reason: notes 
+        }
       });
-      toast.success(`KYC status has been updated to ${status}.`);
-    } catch (error) {
+      
+      const statusLabels = {
+        verified: 'Verified',
+        rejected: 'Rejected',
+        pending: 'Pending Review'
+      };
+      
+      toast.success(`KYC Status Updated`, {
+        description: `Status changed to ${statusLabels[status]}${notes ? ` - ${notes}` : ''}`,
+      });
+      
+      setIsKycDialogOpen(false);
+      setKycNotes('');
+      refetchProfile();
+    } catch (error: any) {
       console.error('Failed to update KYC status:', error);
-      toast.error("Failed to update KYC status. Please try again.");
+      const errorMessage = error?.response?.data?.message || error?.message || "Failed to update KYC status";
+      toast.error("KYC Update Failed", {
+        description: errorMessage,
+      });
     }
   };
 
@@ -161,46 +304,64 @@ export default function ProfileManagementPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href={`/dashboard/subscribers/${id}`}>
-            <Button variant="outline" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold">Profile Management</h1>
-            <p className="text-muted-foreground">
-              Manage {profile?.firstName} {profile?.lastName}'s profile information
-            </p>
+    <ErrorBoundary>
+      <RoleBasedAccess requiredRoles={requiredRoles} userRole={userRole}>
+        <div className="container mx-auto px-4 py-8 space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href={`/dashboard/subscribers/${id}`}>
+                <Button variant="outline" size="icon">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold">Profile Management</h1>
+                <p className="text-muted-foreground">
+                  Manage {profile?.firstName} {profile?.lastName}'s profile information
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              {profileLoading && (
+                <Button variant="ghost" size="sm" disabled>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                </Button>
+              )}
+              <Button 
+                onClick={handleSave} 
+                disabled={updateProfile.isPending || profileLoading}
+                className="relative"
+              >
+                {updateProfile.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                {updateProfile.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
           </div>
-        </div>
-        <Button 
-          onClick={handleSave} 
-          disabled={updateProfile.isPending}
-        >
-          <Save className="h-4 w-4 mr-2" />
-          {updateProfile.isPending ? 'Saving...' : 'Save Changes'}
-        </Button>
-      </div>
 
-      <Tabs defaultValue="personal" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="personal" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Personal Info
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Security & KYC
-          </TabsTrigger>
-          <TabsTrigger value="preferences" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            Preferences
-          </TabsTrigger>
-        </TabsList>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="personal" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Personal Info
+              </TabsTrigger>
+              <TabsTrigger value="security" className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                Security & KYC
+              </TabsTrigger>
+              <TabsTrigger value="preferences" className="flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                Preferences
+              </TabsTrigger>
+              <TabsTrigger value="activity" className="flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Activity
+              </TabsTrigger>
+            </TabsList>
 
         <TabsContent value="personal">
           <div className="grid gap-6 md:grid-cols-2">
@@ -335,146 +496,377 @@ export default function ProfileManagementPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="security">
-          <Card>
-            <CardHeader>
-              <CardTitle>KYC Verification</CardTitle>
-              <CardDescription>
-                Know Your Customer verification status and documents
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div>
-                  <h3 className="font-semibold">Verification Status</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Current KYC verification status
-                  </p>
-                </div>
-                <Badge className={getKycBadge(profile?.kycStatus || 'not_started')}>
-                  {getKycStatusText(profile?.kycStatus || 'not_started')}
-                </Badge>
-              </div>
+            <TabsContent value="security">
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>KYC Verification</CardTitle>
+                    <CardDescription>
+                      Know Your Customer verification status and documents
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                      <div className="space-y-1">
+                        <h3 className="font-semibold flex items-center gap-2">
+                          <Shield className="h-4 w-4" />
+                          Current Status
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Last updated: {profile?.lastActivity ? new Date(profile.lastActivity).toLocaleDateString() : 'Recently'}
+                        </p>
+                      </div>
+                      <Badge className={getKycBadge(profile?.kycStatus || 'not_started')}>
+                        {getKycStatusText(profile?.kycStatus || 'not_started')}
+                      </Badge>
+                    </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
-                <Button 
-                  variant="outline"
-                  onClick={() => handleKycUpdate('pending')}
-                  disabled={updateKyc.isPending}
-                >
-                  Mark as Pending
-                </Button>
-                <Button 
-                  variant="outline"
-                  onClick={() => handleKycUpdate('verified')}
-                  disabled={updateKyc.isPending}
-                >
-                  Mark as Verified
-                </Button>
-                <Button 
-                  variant="outline"
-                  onClick={() => handleKycUpdate('rejected')}
-                  disabled={updateKyc.isPending}
-                >
-                  Mark as Rejected
-                </Button>
-              </div>
+                    <div className="space-y-3">
+                      <h4 className="font-medium">Update KYC Status</h4>
+                      <div className="grid gap-3">
+                        <AlertDialog open={isKycDialogOpen} onOpenChange={setIsKycDialogOpen}>
+                          <div className="grid gap-2 md:grid-cols-3">
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedKycStatus('pending');
+                                  setIsKycDialogOpen(true);
+                                }}
+                                disabled={updateKyc.isPending}
+                                className="w-full"
+                              >
+                                <Clock className="h-4 w-4 mr-2" />
+                                Pending
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedKycStatus('verified');
+                                  setIsKycDialogOpen(true);
+                                }}
+                                disabled={updateKyc.isPending}
+                                className="w-full"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Verified
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedKycStatus('rejected');
+                                  setIsKycDialogOpen(true);
+                                }}
+                                disabled={updateKyc.isPending}
+                                className="w-full"
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Rejected
+                              </Button>
+                            </AlertDialogTrigger>
+                          </div>
+                          
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Update KYC Status to {selectedKycStatus}
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                You are about to change the KYC verification status for {profile?.firstName} {profile?.lastName}. 
+                                This action will be logged and may affect the subscriber's access to certain features.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="kyc-notes">Notes (Optional)</Label>
+                                <Textarea
+                                  id="kyc-notes"
+                                  placeholder="Add any notes about this KYC status change..."
+                                  value={kycNotes}
+                                  onChange={(e) => setKycNotes(e.target.value)}
+                                  rows={3}
+                                />
+                              </div>
+                            </div>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel onClick={() => {
+                                setKycNotes('');
+                                setIsKycDialogOpen(false);
+                              }}>
+                                Cancel
+                              </AlertDialogCancel>
+                              <AlertDialogAction 
+                                onClick={() => handleKycUpdate(selectedKycStatus, kycNotes)}
+                                disabled={updateKyc.isPending}
+                              >
+                                {updateKyc.isPending ? (
+                                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="h-4 w-4 mr-2" />
+                                )}
+                                Update Status
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <div className="space-y-4">
-                <h3 className="font-semibold">Account Information</h3>
-                <div className="grid gap-4 text-sm">
-                  <div className="flex justify-between p-3 bg-muted rounded-lg">
-                    <span>Member Since</span>
-                    <span>{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : 'N/A'}</span>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Security Information</CardTitle>
+                    <CardDescription>
+                      Account security details and compliance
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-4 text-sm">
+                      <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>Member Since</span>
+                        </div>
+                        <span className="font-medium">
+                          {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Activity className="h-4 w-4" />
+                          <span>Last Activity</span>
+                        </div>
+                        <span className="font-medium">
+                          {profile?.lastActivity ? new Date(profile.lastActivity).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          <span>Total Spent</span>
+                        </div>
+                        <span className="font-medium text-green-600">
+                          ${profile?.totalSpent?.toFixed(2) || '0.00'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Settings className="h-4 w-4" />
+                          <span>Active Subscriptions</span>
+                        </div>
+                        <Badge variant="secondary">
+                          {profile?.activeSubscriptions || 0}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Account Status</span>
+                        </div>
+                        <Badge className={profile?.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                          {profile?.status || 'Unknown'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+
+
+            <TabsContent value="preferences">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Communication Preferences</CardTitle>
+                  <CardDescription>
+                    Manage how and when the subscriber wants to be contacted
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-1">
+                      <Label htmlFor="email-notifications">Email Notifications</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Receive important updates via email
+                      </p>
+                    </div>
+                    <Switch
+                      id="email-notifications"
+                      checked={formData.preferences.emailNotifications}
+                      onCheckedChange={(checked) => 
+                        setFormData(prev => ({
+                          ...prev,
+                          preferences: { ...prev.preferences, emailNotifications: checked }
+                        }))
+                      }
+                    />
                   </div>
-                  <div className="flex justify-between p-3 bg-muted rounded-lg">
-                    <span>Last Activity</span>
-                    <span>{profile?.lastActivity ? new Date(profile.lastActivity).toLocaleDateString() : 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between p-3 bg-muted rounded-lg">
-                    <span>Total Spent</span>
-                    <span>${profile?.totalSpent?.toFixed(2) || '0.00'}</span>
-                  </div>
-                  <div className="flex justify-between p-3 bg-muted rounded-lg">
-                    <span>Active Subscriptions</span>
-                    <span>{profile?.activeSubscriptions || 0}</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="preferences">
-          <Card>
-            <CardHeader>
-              <CardTitle>Communication Preferences</CardTitle>
-              <CardDescription>
-                Manage how and when you want to be contacted
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="space-y-1">
-                  <Label htmlFor="email-notifications">Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receive important updates via email
-                  </p>
-                </div>
-                <Switch
-                  id="email-notifications"
-                  checked={formData.preferences.emailNotifications}
-                  onCheckedChange={(checked) => 
-                    setFormData(prev => ({
-                      ...prev,
-                      preferences: { ...prev.preferences, emailNotifications: checked }
-                    }))
-                  }
-                />
-              </div>
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-1">
+                      <Label htmlFor="sms-notifications">SMS Notifications</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Receive text message alerts
+                      </p>
+                    </div>
+                    <Switch
+                      id="sms-notifications"
+                      checked={formData.preferences.smsNotifications}
+                      onCheckedChange={(checked) => 
+                        setFormData(prev => ({
+                          ...prev,
+                          preferences: { ...prev.preferences, smsNotifications: checked }
+                        }))
+                      }
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="space-y-1">
-                  <Label htmlFor="sms-notifications">SMS Notifications</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receive text message alerts
-                  </p>
-                </div>
-                <Switch
-                  id="sms-notifications"
-                  checked={formData.preferences.smsNotifications}
-                  onCheckedChange={(checked) => 
-                    setFormData(prev => ({
-                      ...prev,
-                      preferences: { ...prev.preferences, smsNotifications: checked }
-                    }))
-                  }
-                />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="language">Preferred Language</Label>
+                    <Select 
+                      value={formData.preferences.language} 
+                      onValueChange={(value) => 
+                        setFormData(prev => ({
+                          ...prev,
+                          preferences: { ...prev.preferences, language: value }
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="es">Spanish</SelectItem>
+                        <SelectItem value="fr">French</SelectItem>
+                        <SelectItem value="de">German</SelectItem>
+                        <SelectItem value="ja">Japanese</SelectItem>
+                        <SelectItem value="ko">Korean</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-              <div className="space-y-2">
-                <Label htmlFor="language">Preferred Language</Label>
-                <select
-                  id="language"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  value={formData.preferences.language}
-                  onChange={(e) => 
-                    setFormData(prev => ({
-                      ...prev,
-                      preferences: { ...prev.preferences, language: e.target.value }
-                    }))
-                  }
-                >
-                  <option value="en">English</option>
-                  <option value="es">Spanish</option>
-                  <option value="fr">French</option>
-                  <option value="de">German</option>
-                </select>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+            <TabsContent value="activity">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Activity & Summary</CardTitle>
+                  <CardDescription>
+                    Overview of subscriber activity and key metrics
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="space-y-4">
+                      <h3 className="font-semibold flex items-center gap-2">
+                        <Activity className="h-4 w-4" />
+                        Account Summary
+                      </h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-blue-500" />
+                            <span>Member Since</span>
+                          </div>
+                          <span className="font-medium">
+                            {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Activity className="h-4 w-4 text-green-500" />
+                            <span>Last Activity</span>
+                          </div>
+                          <span className="font-medium">
+                            {profile?.lastActivity ? new Date(profile.lastActivity).toLocaleDateString() : 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-green-600" />
+                            <span>Total Spent</span>
+                          </div>
+                          <span className="font-semibold text-green-600">
+                            ${profile?.totalSpent?.toFixed(2) || '0.00'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Settings className="h-4 w-4 text-purple-500" />
+                            <span>Active Subscriptions</span>
+                          </div>
+                          <Badge variant="secondary">
+                            {profile?.activeSubscriptions || 0}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="font-semibold flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Security Status
+                      </h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-blue-500" />
+                            <span>Account Status</span>
+                          </div>
+                          <Badge 
+                            className={
+                              profile?.status === 'active' 
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
+                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+                            }
+                          >
+                            {profile?.status || 'Unknown'}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Shield className="h-4 w-4 text-purple-500" />
+                            <span>KYC Status</span>
+                          </div>
+                          <Badge className={getKycBadge(profile?.kycStatus || 'not_started')}>
+                            {getKycStatusText(profile?.kycStatus || 'not_started')}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <History className="h-4 w-4 text-orange-500" />
+                            <span>Total History</span>
+                          </div>
+                          <span className="font-medium">
+                            {profile?.subscriptionHistory || 0} subscriptions
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-amber-500" />
+                            <span>Lifetime Value</span>
+                          </div>
+                          <span className="font-semibold text-amber-600">
+                            ${profile?.lifetimeValue?.toFixed(2) || '0.00'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </RoleBasedAccess>
+    </ErrorBoundary>
   );
 }

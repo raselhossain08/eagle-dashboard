@@ -135,19 +135,20 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          {mode === 'create' ? 'Create New Plan' : 'Edit Plan'}
-        </CardTitle>
-        <CardDescription>
-          {mode === 'create' 
-            ? 'Create a new billing plan for your customers' 
-            : 'Update the plan details and pricing'
-          }
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="w-full max-w-none">
+      <Card className="border-0 shadow-none">
+        <CardHeader className="px-0 pb-4">
+          <CardTitle className="text-xl">
+            {mode === 'create' ? 'Create New Plan' : 'Edit Plan'}
+          </CardTitle>
+          <CardDescription>
+            {mode === 'create' 
+              ? 'Create a new billing plan for your customers' 
+              : 'Update the plan details and pricing'
+            }
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-0">
         {submitError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-sm text-red-600">{submitError}</p>
@@ -156,7 +157,7 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
         
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
           {/* Basic Information */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <label htmlFor="name" className="text-sm font-medium">
                 Plan Name *
@@ -193,7 +194,7 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
           </div>
 
           {/* Pricing & Billing */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <label htmlFor="price" className="text-sm font-medium">
                 Base Price *
@@ -223,10 +224,10 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <label htmlFor="interval" className="text-sm font-medium">
-                Billing Interval
+                Billing Interval *
               </label>
               <select
                 id="interval"
@@ -271,7 +272,7 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
           )}
 
           {/* Seating */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
             <div className="space-y-2">
               <label htmlFor="baseSeats" className="text-sm font-medium">
                 Base Seats
@@ -345,7 +346,7 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
           </div>
 
           {/* Status Toggles */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
             <div className="flex items-center justify-between">
               <div>
                 <label htmlFor="isActive" className="text-sm font-medium">
@@ -405,21 +406,27 @@ export function PlanForm({ plan, onSubmit, onCancel, isLoading, mode }: PlanForm
           </Card>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3">
+          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t">
             <Button
               type="button"
               variant="outline"
               onClick={onCancel}
               disabled={isLoading}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button 
+              type="submit" 
+              disabled={isLoading}
+              className="w-full sm:w-auto"
+            >
               {isLoading ? 'Saving...' : mode === 'create' ? 'Create Plan' : 'Update Plan'}
             </Button>
           </div>
         </form>
       </CardContent>
-    </Card>
+      </Card>
+    </div>
   );
 }

@@ -42,18 +42,20 @@ export function useSearchSuggestions(query: string, category?: string) {
   });
 }
 
-export function useSearchAnalytics() {
+export function useSearchAnalytics(enabled: boolean = false) {
   return useQuery({
     queryKey: ['search', 'analytics'],
     queryFn: () => searchService.getSearchAnalytics(),
+    enabled: enabled, // Only fetch when explicitly enabled
     staleTime: 1000 * 60 * 15, // 15 minutes
   });
 }
 
-export function useSearchFilters() {
+export function useSearchFilters(enabled: boolean = false) {
   return useQuery({
     queryKey: ['search', 'filters'],
     queryFn: () => searchService.getSearchFilters(),
+    enabled: enabled, // Only fetch when explicitly enabled
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 }

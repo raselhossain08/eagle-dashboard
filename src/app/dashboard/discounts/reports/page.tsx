@@ -34,8 +34,8 @@ export default function ReportsPage() {
     isLoading: statsLoading,
     error: statsError 
   } = useRedemptionStats({
-    from: startOfMonth,
-    to: endOfMonth
+    startDate: startOfMonth.toISOString().split('T')[0],
+    endDate: endOfMonth.toISOString().split('T')[0]
   });
 
   const exportDiscounts = useExportDiscounts();

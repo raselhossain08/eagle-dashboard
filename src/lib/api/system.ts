@@ -44,12 +44,25 @@ class SystemService {
     return await apiClient.post<any>(`${this.baseUrl}/settings/${key}`, { value });
   }
 
+  async updateBulkSettings(settings: Record<string, any>): Promise<any> {
+    return await apiClient.post<any>(`${this.baseUrl}/settings/bulk`, settings);
+  }
+
   async getFeatureFlags(): Promise<FeatureFlags> {
     return await apiClient.get<FeatureFlags>(`${this.baseUrl}/settings/feature-flags`);
   }
 
   async toggleFeatureFlag(key: string, enabled: boolean): Promise<any> {
     return await apiClient.post<any>(`${this.baseUrl}/settings/feature-flags/${key}`, { enabled });
+  }
+
+  async exportSettings(category?: string): Promise<any> {
+    const url = category ? `${this.baseUrl}/settings/export?category=${category}` : `${this.baseUrl}/settings/export`;
+    return await apiClient.post<any>(url);
+  }
+
+  async importSettings(settingsData: Record<string, any>): Promise<any> {
+    return await apiClient.post<any>(`${this.baseUrl}/settings/import`, settingsData);
   }
 
   // Webhook operations

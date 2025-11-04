@@ -1,4 +1,6 @@
 // lib/api/activity.ts
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
+
 export interface UserActivity {
   id: string;
   userId: string;
@@ -44,7 +46,7 @@ export class ActivityService {
   private static baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   private static getAuthHeaders() {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    const token = TokenStorageService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),

@@ -1,7 +1,7 @@
 // app/(auth)/verify-2fa/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { TwoFactorForm } from '@/components/auth/two-factor-form';
 import { AuthLayout } from '@/components/auth/auth-layout';
@@ -11,7 +11,7 @@ import { SessionStorageService } from '@/lib/auth/session-storage.service';
 import { useAuthStore } from '@/store/auth-store';
 import { AdminRole } from '@/types/auth';
 
-export default function Verify2FAPage() {
+function Verify2FAContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get('userId');
@@ -82,5 +82,13 @@ export default function Verify2FAPage() {
         error={error}
       />
     </AuthLayout>
+  );
+}
+
+export default function Verify2FAPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <Verify2FAContent />
+    </Suspense>
   );
 }

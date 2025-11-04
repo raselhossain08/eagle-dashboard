@@ -7,9 +7,7 @@ export function initSentry() {
       environment: process.env.NODE_ENV,
       tracesSampleRate: 0.1,
       integrations: [
-        new Sentry.BrowserTracing({
-          tracePropagationTargets: ['localhost', /^https:\/\/yourapp\.com/],
-        }),
+        // Sentry.BrowserTracing() - Commented out due to import issues
       ],
       beforeSend(event) {
         // Filter out Prisma instrumentation warnings

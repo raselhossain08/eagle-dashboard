@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useSearchStore } from '@/lib/stores/search-store';
-import { useGlobalSearch } from '@/lib/hooks/use-search';
+import { useSearchStore } from '@/stores/search-store';
+import { useGlobalSearch } from '@/hooks/use-search';
 import { SearchResult } from '@/types/search';
 import { User, FileText, Receipt, Calendar } from 'lucide-react';
 
@@ -78,7 +78,10 @@ const ResultCard = ({ result }: { result: SearchResult }) => {
 
 export function SearchResults() {
   const { currentQuery, searchResults, isSearching, totalResults } = useSearchStore();
-  const { data, isLoading, error } = useGlobalSearch();
+  const { data, isLoading, error } = useGlobalSearch({
+    query: currentQuery,
+    limit: 50
+  });
 
   if (!currentQuery.trim()) {
     return (

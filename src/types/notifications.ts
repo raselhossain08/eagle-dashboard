@@ -35,6 +35,7 @@ export interface Template {
   name: string;
   subject: string;
   content: string;
+  textContent?: string;
   variables: string[];
   createdAt: string;
   updatedAt: string;
@@ -54,6 +55,28 @@ export interface EmailStats {
   deliveryRate: number;
   bounceRate: number;
   topTemplates?: Array<{ template: string; sentCount: number }>;
+}
+
+export interface EmailTrend {
+  date: string;
+  sent: number;
+  delivered: number;
+  opened: number;
+  clicked: number;
+  failed: number;
+  bounceRate: number;
+  openRate: number;
+  clickRate: number;
+}
+
+export interface TemplateAnalytics {
+  id: string;
+  name: string;
+  sentCount: number;
+  deliveryRate: number;
+  openRate: number;
+  clickRate: number;
+  lastUsed: string;
 }
 
 export interface NotificationParams {

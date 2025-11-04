@@ -146,7 +146,7 @@ export function ChangesVisualization({
 
   return (
     <div className="space-y-4">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="side-by-side">Side by Side</TabsTrigger>
           <TabsTrigger value="diff">Field Diff</TabsTrigger>

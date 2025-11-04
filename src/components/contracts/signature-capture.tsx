@@ -65,7 +65,7 @@ export function SignatureCapture({
     const signatureDto: SignContractDto = {
       fullName: typedName || 'Signer',
       email: 'signer@example.com', // This would come from user context
-      signatureType: activeMode,
+      signatureType: activeMode === 'type' ? 'typed' : activeMode === 'draw' ? 'drawn' : 'uploaded',
       signatureData: finalSignatureData,
       consents
     }
@@ -116,10 +116,10 @@ export function SignatureCapture({
               </code>
             </div>
             <div>
-              <strong>Terms Version:</strong> {contract.termsVersion}
+              <strong>Terms Version:</strong> 1.0
             </div>
             <div>
-              <strong>Privacy Version:</strong> {contract.privacyVersion}
+              <strong>Privacy Version:</strong> 1.0
             </div>
           </div>
         </CardContent>
@@ -264,7 +264,7 @@ export function SignatureCapture({
               disabled={isLoading}
             />
             <Label htmlFor="terms" className="flex-1">
-              I agree to the <a href="#" className="text-primary hover:underline">Terms of Service</a> (Version {contract.termsVersion})
+              I agree to the <a href="#" className="text-primary hover:underline">Terms of Service</a> (Version 1.0)
             </Label>
           </div>
 
@@ -278,7 +278,7 @@ export function SignatureCapture({
               disabled={isLoading}
             />
             <Label htmlFor="privacy" className="flex-1">
-              I agree to the <a href="#" className="text-primary hover:underline">Privacy Policy</a> (Version {contract.privacyVersion})
+              I agree to the <a href="#" className="text-primary hover:underline">Privacy Policy</a> (Version 1.0)
             </Label>
           </div>
 

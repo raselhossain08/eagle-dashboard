@@ -49,7 +49,8 @@ export function MrrTrendsChart({ data, period, isLoading }: MrrTrendsChartProps)
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={350}>
+        <div className="min-h-[350px]">
+          <ResponsiveContainer width="100%" height={350} minHeight={300}>
           <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis 
@@ -94,6 +95,7 @@ export function MrrTrendsChart({ data, period, isLoading }: MrrTrendsChartProps)
             />
           </LineChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );

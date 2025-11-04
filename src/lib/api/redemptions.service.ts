@@ -1,6 +1,7 @@
 // lib/api/redemptions.service.ts
 import { apiClient } from './api-client';
 import { Redemption, RedemptionFilters, DateRange } from '@/types/discounts';
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
 
 export interface RedemptionsResponse {
   redemptions: Redemption[];
@@ -111,7 +112,7 @@ export class RedemptionsService {
     const url = `${this.baseUrl}/export?${searchParams.toString()}`;
     
     // Get auth token
-    const token = localStorage.getItem('access_token');
+    const token = TokenStorageService.getAccessToken();
     if (!token) {
       throw new Error('Authentication required');
     }

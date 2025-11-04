@@ -73,8 +73,8 @@ export function RevenueBreakdownChart({ data, period, isLoading }: RevenueBreakd
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-80 min-h-[320px]">
+          <ResponsiveContainer width="100%" height="100%" minHeight={300}>
             <PieChart>
               <Pie
                 data={chartData}
@@ -82,7 +82,7 @@ export function RevenueBreakdownChart({ data, period, isLoading }: RevenueBreakd
                 cy="50%"
                 labelLine={false}
                 label={({ name, percent }) => 
-                  `${name}: ${(percent * 100).toFixed(0)}%`
+                  `${name}: ${(Number(percent) * 100).toFixed(0)}%`
                 }
                 outerRadius={80}
                 fill="#8884d8"

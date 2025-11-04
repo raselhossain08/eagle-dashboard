@@ -15,7 +15,7 @@ import Link from 'next/link';
 export default function UserDetailPage() {
   const params = useParams();
   const { data: users, isLoading } = useUsers();
-  const user = users?.find(u => u.id === params.id);
+  const user = users?.users?.find(u => u.id === params.id);
 
   if (isLoading) {
     return <div className="flex justify-center p-8">Loading user details...</div>;

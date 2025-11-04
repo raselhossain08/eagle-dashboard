@@ -38,20 +38,20 @@ const navigationItems = [
     href: "/dashboard/analytics",
     icon: TrendingUp,
     items: [
-      { title: "Analytics", href: "/dashboard/analytics" },
+      { title: "Overview", href: "/dashboard/analytics" },
       { title: "Events", href: "/dashboard/analytics/events" },
       { title: "Funnels", href: "/dashboard/analytics/funnels" },
       { title: "Real-time", href: "/dashboard/analytics/real-time" },
       { title: "Reports", href: "/dashboard/analytics/reports", items: [
-        { title: "Reports", href: "/dashboard/analytics/reports" },
+        { title: "Overview", href: "/dashboard/analytics/reports" },
         { title: "Revenue", href: "/dashboard/analytics/reports/revenue" },
         { title: "Cohorts", href: "/dashboard/analytics/reports/cohorts" },
         { title: "Goals", href: "/dashboard/analytics/reports/goals" }
       ]},
       { title: "Audience", href: "/dashboard/analytics/audience", items: [
+        { title: "Overview", href: "/dashboard/analytics/audience" },
         { title: "Geographic", href: "/dashboard/analytics/audience/geographic" },
-        { title: "Devices", href: "/dashboard/analytics/audience/devices" },
-        { title: "Audience", href: "/dashboard/analytics/audience" }
+        { title: "Devices", href: "/dashboard/analytics/audience/devices" }
       ]}
     ]
   },
@@ -60,7 +60,11 @@ const navigationItems = [
     href: "/dashboard/users",
     icon: Users,
     items: [
-      { title: "Analytics", href: "/dashboard/users/analytics" },
+      { title: "Overview", href: "/dashboard/users" },
+      { title: "Analytics", href: "/dashboard/users/analytics", items: [
+        { title: "Overview", href: "/dashboard/users/analytics" },
+        { title: "Growth", href: "/dashboard/users/analytics/growth" }
+      ]},
       { title: "Segments", href: "/dashboard/users/segments" },
       { title: "Create User", href: "/dashboard/users/create" }
     ]
@@ -70,8 +74,10 @@ const navigationItems = [
     href: "/dashboard/subscribers",
     icon: UserCheck,
     items: [
+      { title: "Overview", href: "/dashboard/subscribers" },
       { title: "Analytics", href: "/dashboard/subscribers/analytics" },
-      { title: "Segments", href: "/dashboard/subscribers/segments" }
+      { title: "Segments", href: "/dashboard/subscribers/segments" },
+      { title: "Create Subscriber", href: "/dashboard/subscribers/create" }
     ]
   },
   {
@@ -79,17 +85,26 @@ const navigationItems = [
     href: "/dashboard/billing",
     icon: CreditCard,
     items: [
+      { title: "Overview", href: "/dashboard/billing" },
       { title: "Invoices", href: "/dashboard/billing/invoices", items: [
+        { title: "All Invoices", href: "/dashboard/billing/invoices" },
+        { title: "New Invoice", href: "/dashboard/billing/invoices/new" },
         { title: "Overdue", href: "/dashboard/billing/invoices/overdue" }
       ]},
       { title: "Plans", href: "/dashboard/billing/plans", items: [
+        { title: "All Plans", href: "/dashboard/billing/plans" },
         { title: "New Plan", href: "/dashboard/billing/plans/new" }
       ]},
       { title: "Subscriptions", href: "/dashboard/billing/subscriptions", items: [
+        { title: "All Subscriptions", href: "/dashboard/billing/subscriptions" },
         { title: "Analytics", href: "/dashboard/billing/subscriptions/analytics" }
       ]},
       { title: "Reports", href: "/dashboard/billing/reports", items: [
+        { title: "Overview", href: "/dashboard/billing/reports" },
+        { title: "Customer Cohort", href: "/dashboard/billing/reports/customer-cohort" },
+        { title: "Invoice Summary", href: "/dashboard/billing/reports/invoice-summary" },
         { title: "MRR", href: "/dashboard/billing/reports/mrr" },
+        { title: "Plan Performance", href: "/dashboard/billing/reports/plan-performance" },
         { title: "Revenue", href: "/dashboard/billing/reports/revenue" }
       ]}
     ]
@@ -99,19 +114,24 @@ const navigationItems = [
     href: "/dashboard/support",
     icon: HelpCircle,
     items: [
+      { title: "Overview", href: "/dashboard/support" },
       { title: "Analytics", href: "/dashboard/support/analytics", items: [
+        { title: "Overview", href: "/dashboard/support/analytics" },
         { title: "Performance", href: "/dashboard/support/analytics/performance" },
         { title: "Reports", href: "/dashboard/support/analytics/reports" }
       ]},
       { title: "Tickets", href: "/dashboard/support/tickets", items: [
+        { title: "All Tickets", href: "/dashboard/support/tickets" },
         { title: "Create Ticket", href: "/dashboard/support/tickets/create" }
       ]},
       { title: "Customers", href: "/dashboard/support/customers" },
       { title: "Impersonation", href: "/dashboard/support/impersonation", items: [
+        { title: "Overview", href: "/dashboard/support/impersonation" },
         { title: "Active Sessions", href: "/dashboard/support/impersonation/active" },
         { title: "History", href: "/dashboard/support/impersonation/history" }
       ]},
       { title: "Saved Replies", href: "/dashboard/support/saved-replies", items: [
+        { title: "All Replies", href: "/dashboard/support/saved-replies" },
         { title: "Create Reply", href: "/dashboard/support/saved-replies/create" }
       ]}
     ]
@@ -121,13 +141,16 @@ const navigationItems = [
     href: "/dashboard/contracts",
     icon: FileCheck,
     items: [
+      { title: "Overview", href: "/dashboard/contracts" },
       { title: "List", href: "/dashboard/contracts/list" },
       { title: "Create", href: "/dashboard/contracts/create" },
       { title: "Templates", href: "/dashboard/contracts/templates", items: [
+        { title: "All Templates", href: "/dashboard/contracts/templates" },
         { title: "New Template", href: "/dashboard/contracts/templates/new" }
       ]},
       { title: "Signatures", href: "/dashboard/contracts/signatures" },
       { title: "Analytics", href: "/dashboard/contracts/analytics", items: [
+        { title: "Overview", href: "/dashboard/contracts/analytics" },
         { title: "Compliance", href: "/dashboard/contracts/analytics/compliance" }
       ]}
     ]
@@ -137,18 +160,23 @@ const navigationItems = [
     href: "/dashboard/discounts",
     icon: Tag,
     items: [
+      { title: "Overview", href: "/dashboard/discounts" },
       { title: "Codes", href: "/dashboard/discounts/codes", items: [
+        { title: "All Codes", href: "/dashboard/discounts/codes" },
         { title: "New Code", href: "/dashboard/discounts/codes/new" },
         { title: "Bulk Create", href: "/dashboard/discounts/codes/bulk" }
       ]},
       { title: "Campaigns", href: "/dashboard/discounts/campaigns", items: [
+        { title: "All Campaigns", href: "/dashboard/discounts/campaigns" },
         { title: "New Campaign", href: "/dashboard/discounts/campaigns/new" }
       ]},
       { title: "Redemptions", href: "/dashboard/discounts/redemptions", items: [
+        { title: "All Redemptions", href: "/dashboard/discounts/redemptions" },
         { title: "Analytics", href: "/dashboard/discounts/redemptions/analytics" },
         { title: "Suspicious", href: "/dashboard/discounts/redemptions/suspicious" }
       ]},
       { title: "Reports", href: "/dashboard/discounts/reports", items: [
+        { title: "Overview", href: "/dashboard/discounts/reports" },
         { title: "Performance", href: "/dashboard/discounts/reports/performance" }
       ]},
       { title: "Validation", href: "/dashboard/discounts/validation" }
@@ -159,10 +187,12 @@ const navigationItems = [
     href: "/dashboard/files",
     icon: FolderOpen,
     items: [
+      { title: "Overview", href: "/dashboard/files" },
       { title: "Documents", href: "/dashboard/files/documents" },
       { title: "Gallery", href: "/dashboard/files/gallery" },
       { title: "Folders", href: "/dashboard/files/folders" },
       { title: "Admin", href: "/dashboard/files/admin", items: [
+        { title: "Overview", href: "/dashboard/files/admin" },
         { title: "Analytics", href: "/dashboard/files/admin/analytics" }
       ]}
     ]
@@ -172,14 +202,18 @@ const navigationItems = [
     href: "/dashboard/reports",
     icon: FileText,
     items: [
+      { title: "Overview", href: "/dashboard/reports" },
       { title: "Custom", href: "/dashboard/reports/custom" },
       { title: "Financial", href: "/dashboard/reports/financial", items: [
+        { title: "Overview", href: "/dashboard/reports/financial" },
         { title: "Revenue", href: "/dashboard/reports/financial/revenue" },
         { title: "Subscriptions", href: "/dashboard/reports/financial/subscriptions" }
       ]},
       { title: "Users", href: "/dashboard/reports/users", items: [
+        { title: "Overview", href: "/dashboard/reports/users" },
         { title: "Acquisition", href: "/dashboard/reports/users/acquisition" },
-        { title: "Activity", href: "/dashboard/reports/users/activity" }
+        { title: "Activity", href: "/dashboard/reports/users/activity" },
+        { title: "Retention", href: "/dashboard/reports/users/retention" }
       ]}
     ]
   },
@@ -188,10 +222,14 @@ const navigationItems = [
     href: "/dashboard/notifications",
     icon: Bell,
     items: [
+      { title: "Overview", href: "/dashboard/notifications" },
+      { title: "Analytics", href: "/dashboard/notifications/analytics" },
       { title: "Templates", href: "/dashboard/notifications/templates", items: [
+        { title: "All Templates", href: "/dashboard/notifications/templates" },
         { title: "Create Template", href: "/dashboard/notifications/templates/create" }
       ]},
       { title: "Email", href: "/dashboard/notifications/email", items: [
+        { title: "Overview", href: "/dashboard/notifications/email" },
         { title: "Send", href: "/dashboard/notifications/email/send" }
       ]}
     ]
@@ -201,6 +239,7 @@ const navigationItems = [
     href: "/dashboard/audit",
     icon: Shield,
     items: [
+      { title: "Overview", href: "/dashboard/audit" },
       { title: "Logs", href: "/dashboard/audit/logs" },
       { title: "Admin Activity", href: "/dashboard/audit/admin-activity" },
       { title: "System Activity", href: "/dashboard/audit/system-activity" },
@@ -212,19 +251,24 @@ const navigationItems = [
     href: "/dashboard/system",
     icon: Settings,
     items: [
+      { title: "Overview", href: "/dashboard/system" },
       { title: "Health", href: "/dashboard/system/health", items: [
+        { title: "Overview", href: "/dashboard/system/health" },
         { title: "Alerts", href: "/dashboard/system/health/alerts" },
         { title: "Metrics", href: "/dashboard/system/health/metrics" }
       ]},
       { title: "Settings", href: "/dashboard/system/settings", items: [
+        { title: "Overview", href: "/dashboard/system/settings" },
         { title: "Feature Flags", href: "/dashboard/system/settings/feature-flags" }
       ]},
       { title: "Maintenance", href: "/dashboard/system/maintenance", items: [
+        { title: "Overview", href: "/dashboard/system/maintenance" },
         { title: "Backups", href: "/dashboard/system/maintenance/backups" },
         { title: "Cleanup", href: "/dashboard/system/maintenance/cleanup" },
         { title: "Schedule", href: "/dashboard/system/maintenance/schedule" }
       ]},
       { title: "Webhooks", href: "/dashboard/system/webhooks", items: [
+        { title: "Overview", href: "/dashboard/system/webhooks" },
         { title: "Endpoints", href: "/dashboard/system/webhooks/endpoints" },
         { title: "Events", href: "/dashboard/system/webhooks/events" },
         { title: "Logs", href: "/dashboard/system/webhooks/logs" }

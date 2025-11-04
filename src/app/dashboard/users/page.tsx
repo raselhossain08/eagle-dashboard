@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, use } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,12 +16,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 
 interface UsersDashboardProps {
-  searchParams: {
+  searchParams: Promise<{
     page?: string;
     search?: string;
     status?: string;
     sort?: string;
-  };
+  }>;
 }
 
 export default function UsersDashboard({ searchParams }: UsersDashboardProps) {
@@ -29,7 +29,10 @@ export default function UsersDashboard({ searchParams }: UsersDashboardProps) {
   const urlSearchParams = useSearchParams();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
-  const currentPage = parseInt(searchParams.page || '1');
+  // Unwrap the searchParams promise
+  const resolvedSearchParams = use(searchParams);
+  
+  const currentPage = parseInt(resolvedSearchParams.page || '1');
   const pageSize = 10;
   
   const { 
@@ -41,9 +44,9 @@ export default function UsersDashboard({ searchParams }: UsersDashboardProps) {
   } = useUsers({
     page: currentPage,
     pageSize,
-    search: searchParams.search || '',
-    status: searchParams.status || '',
-    sort: searchParams.sort || 'createdAt_desc'
+    search: resolvedSearchParams.search || '',
+    status: resolvedSearchParams.status || '',
+    sort: resolvedSearchParams.sort || 'createdAt_desc'
   }) as {
     data: {
       users: any[];
@@ -60,6 +63,11 @@ export default function UsersDashboard({ searchParams }: UsersDashboardProps) {
 
   const updateUserStatus = useUpdateUserStatus();
   const deleteUser = useDeleteUser();
+
+  // Debug: Log the data being passed to the table
+  console.log('UsersData:', usersData);
+  console.log('Users array:', usersData?.users);
+  console.log('Users array length:', usersData?.users?.length);
 
   const handleStatusUpdate = async (userId: string, status: string) => {
     try {

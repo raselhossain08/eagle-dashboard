@@ -14,8 +14,8 @@ export class PDFExportService {
     doc.setFontSize(12);
     doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 45);
     
-    if (filters.dateRange) {
-      doc.text(`Date Range: ${filters.dateRange.from.toLocaleDateString()} - ${filters.dateRange.to.toLocaleDateString()}`, 20, 55);
+    if (filters.startDate && filters.endDate) {
+      doc.text(`Date Range: ${filters.startDate.toLocaleDateString()} - ${filters.endDate.toLocaleDateString()}`, 20, 55);
     }
     
     if (filters.adminUserId) {

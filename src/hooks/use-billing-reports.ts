@@ -5,6 +5,7 @@ import {
   MrrReportData, 
   RevenueReportData, 
   CohortAnalysisData,
+  CustomerCohortData,
   DashboardStats,
   PlanPerformance,
   InvoiceSummary,
@@ -76,10 +77,13 @@ export const useCohortAnalysis = (type: 'weekly' | 'monthly') => {
 
 // Customer Cohort Hook
 export const useCustomerCohort = (type: 'weekly' | 'monthly' = 'monthly', periods: number = 12) => {
-  return useQuery({
+  return useQuery<CustomerCohortData[]>({
     queryKey: ['billing-reports', 'customer-cohort', type, periods],
     queryFn: () => billingReportsService.getCustomerCohort(type, periods),
     staleTime: 30 * 60 * 1000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 3,
   });
 };
 
@@ -167,6 +171,22 @@ export const useExportMrrReport = () => {
       const a = document.createElement('a');
       a.href = url;
       a.download = `mrr-report-${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    },
+  });
+};
+
+export const useExportCohortReport = () => {
+  return useMutation({
+    mutationFn: (params: ReportExportParams) => billingReportsService.exportSubscriptionsReport(params),
+    onSuccess: (data) => {
+      const url = window.URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `customer-cohort-report-${new Date().toISOString().split('T')[0]}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

@@ -18,6 +18,8 @@ export const useFunnelTimeAnalysis = (params: FunnelTimeAnalysisParams) => {
     queryFn: () => funnelService.getFunnelTimeAnalysis(params),
     staleTime: 2 * 60 * 1000, // 2 minutes
     enabled: !!params.steps?.length && !!params.startDate && !!params.endDate,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 };
 
@@ -27,5 +29,7 @@ export const useSegmentPerformance = (params: SegmentPerformanceParams) => {
     queryFn: () => funnelService.getSegmentPerformance(params),
     staleTime: 2 * 60 * 1000, // 2 minutes
     enabled: !!params.steps?.length && !!params.segmentBy && !!params.startDate && !!params.endDate,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 };

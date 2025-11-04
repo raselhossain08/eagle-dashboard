@@ -77,6 +77,23 @@ export const useEmailStats = () => {
   return useQuery({
     queryKey: ['email-stats'],
     queryFn: () => notificationsService.getEmailStats(),
+    refetchInterval: 60000, // Refetch every minute
+  });
+};
+
+export const useEmailTrends = (period: 'week' | 'month' | 'year' = 'month') => {
+  return useQuery({
+    queryKey: ['email-trends', period],
+    queryFn: () => notificationsService.getEmailTrends({ period }),
+    refetchInterval: 300000, // Refetch every 5 minutes
+  });
+};
+
+export const useTemplateStats = () => {
+  return useQuery({
+    queryKey: ['template-stats'],
+    queryFn: () => notificationsService.getTemplateStats(),
+    refetchInterval: 300000, // Refetch every 5 minutes
   });
 };
 
@@ -108,6 +125,14 @@ export const useTemplates = (params?: { search?: string }) => {
   return useQuery({
     queryKey: ['templates', params],
     queryFn: () => notificationsService.getTemplates(params),
+  });
+};
+
+export const useTemplate = (id: string) => {
+  return useQuery({
+    queryKey: ['template', id],
+    queryFn: () => notificationsService.getTemplateById(id),
+    enabled: !!id,
   });
 };
 

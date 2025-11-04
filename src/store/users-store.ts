@@ -1,6 +1,16 @@
 // lib/stores/users-store.ts
 import { create } from 'zustand';
-import { User, UsersParams, UserFilters } from '@/types/users';
+import { User, UsersParams } from '@/types/users';
+
+interface UserFilters {
+  status?: string;
+  kycStatus?: string;
+  emailVerified?: boolean;
+  dateRange?: {
+    start?: Date;
+    end?: Date;
+  };
+}
 
 interface UsersStore {
   // Current state

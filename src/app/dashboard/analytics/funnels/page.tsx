@@ -10,6 +10,7 @@ import { useCreateFunnel, useFunnelTimeAnalysis, useSegmentPerformance } from "@
 import { useDashboardStore } from "@/store/dashboard-store";
 import { TrendingDown, Users, Clock, Target } from "lucide-react";
 import { useMemo, useState } from "react";
+import { RefreshCw, Calendar } from "lucide-react";
 
 
 
@@ -19,13 +20,14 @@ export default function FunnelsPage() {
   const { dateRange } = useDashboardStore();
   const [selectedSteps] = useState(defaultFunnelSteps);
 
-  // API Hooks
+  // API Hooks with proper date formatting
   const { 
     data: funnelData, 
     isLoading: funnelLoading, 
     error: funnelError 
   } = useConversionFunnel({
-    ...dateRange,
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
     steps: selectedSteps
   });
 
@@ -35,7 +37,8 @@ export default function FunnelsPage() {
     error: timeError 
   } = useFunnelTimeAnalysis({
     steps: selectedSteps,
-    ...dateRange
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate
   });
 
   const { 
@@ -45,56 +48,142 @@ export default function FunnelsPage() {
   } = useSegmentPerformance({
     steps: selectedSteps,
     segmentBy: 'device',
-    ...dateRange
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate
   });
 
   const createFunnelMutation = useCreateFunnel();
 
-  // Transform funnel data for display
+  // Manual refresh functionality
+  const handleRefreshData = () => {
+    // Force refresh all queries
+    window.location.reload();
+  };
+
+  // Quick date range presets
+  const handleDateRangePreset = (days: number) => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - days);
+    
+    useDashboardStore.getState().setDateRange({
+      startDate,
+      endDate
+    });
+  };
+
+  // Transform funnel data for display with error handling
   const transformedFunnelData = useMemo(() => {
-    if (funnelData && Array.isArray(funnelData) && funnelData.length > 0) {
-      return funnelData;
-    }
-    return [];
-  }, [funnelData]);
-
-  // Transform time analysis for trends chart
-  const transformedTrendsData = useMemo(() => {
-    if (timeAnalysis && Array.isArray(timeAnalysis) && timeAnalysis.length > 0) {
-      // Use actual time analysis data for trends
-      return timeAnalysis.map((item: any, index: number) => ({
-        date: new Date(Date.now() - (timeAnalysis.length - index - 1) * 24 * 60 * 60 * 1000)
-          .toISOString().split('T')[0],
-        value: item.conversionRate ?? 0
+    try {
+      if (!funnelData) return [];
+      
+      if (Array.isArray(funnelData) && funnelData.length > 0) {
+        return funnelData.map(item => ({
+          ...item,
+          step: item.step || 'Unknown Step',
+          count: typeof item.count === 'number' ? item.count : 0,
+          conversionRate: typeof item.conversionRate === 'number' ? item.conversionRate : 0,
+          dropOff: typeof item.dropOff === 'number' ? item.dropOff : 0,
+        }));
+      }
+      
+      // Return default structure if no data
+      return selectedSteps.map((step, index) => ({
+        step,
+        count: 0,
+        conversionRate: 0,
+        dropOff: index === 0 ? 0 : 0,
       }));
+    } catch (error) {
+      console.error('Error transforming funnel data:', error);
+      return [];
     }
-    return [];
-  }, [timeAnalysis]);
+  }, [funnelData, selectedSteps]);
 
-  // Calculate funnel metrics
+  // Transform time analysis for trends chart with better date handling
+  const transformedTrendsData = useMemo(() => {
+    try {
+      if (!timeAnalysis) return [];
+      
+      if (Array.isArray(timeAnalysis) && timeAnalysis.length > 0) {
+        return timeAnalysis.map((item: any) => ({
+          date: item.date || new Date().toISOString().split('T')[0],
+          value: typeof item.conversionRate === 'number' ? item.conversionRate : 0,
+        }));
+      }
+      
+      // Generate fallback data for the date range if no real data
+      const daysDiff = Math.ceil((dateRange.endDate.getTime() - dateRange.startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const fallbackData = [];
+      
+      for (let i = 0; i <= Math.min(daysDiff, 30); i++) {
+        const date = new Date(dateRange.startDate);
+        date.setDate(date.getDate() + i);
+        fallbackData.push({
+          date: date.toISOString().split('T')[0],
+          value: 0,
+        });
+      }
+      
+      return fallbackData;
+    } catch (error) {
+      console.error('Error transforming trends data:', error);
+      return [];
+    }
+  }, [timeAnalysis, dateRange]);
+
+  // Calculate funnel metrics with comprehensive error handling
   const funnelMetrics = useMemo(() => {
-    if (!funnelError && transformedFunnelData && transformedFunnelData.length > 0) {
-      const totalUsers = transformedFunnelData[0]?.count ?? 0;
-      const completedUsers = transformedFunnelData[transformedFunnelData.length - 1]?.count ?? 0;
-      const overallConversion = totalUsers > 0 ? (completedUsers / totalUsers) * 100 : 0;
-      const avgDropOff = transformedFunnelData.length > 1 
-        ? transformedFunnelData.slice(1).reduce((acc: number, step: any) => acc + (step.dropOff ?? 0), 0) / (transformedFunnelData.length - 1)
-        : 0;
+    try {
+      if (funnelError) {
+        console.warn('Funnel error, returning zero metrics:', funnelError);
+        return {
+          totalUsers: 0,
+          completedUsers: 0,
+          overallConversion: '0.0',
+          avgDropOff: '0.0'
+        };
+      }
+
+      if (transformedFunnelData && transformedFunnelData.length > 0) {
+        const totalUsers = Math.max(0, transformedFunnelData[0]?.count ?? 0);
+        const completedUsers = Math.max(0, transformedFunnelData[transformedFunnelData.length - 1]?.count ?? 0);
+        
+        const overallConversion = totalUsers > 0 ? 
+          Math.min(100, Math.max(0, (completedUsers / totalUsers) * 100)) : 0;
+        
+        // Calculate average drop-off excluding the first step
+        const dropOffSteps = transformedFunnelData.slice(1).filter(step => 
+          typeof step.dropOff === 'number' && !isNaN(step.dropOff)
+        );
+        
+        const avgDropOff = dropOffSteps.length > 0 
+          ? dropOffSteps.reduce((acc, step) => acc + step.dropOff, 0) / dropOffSteps.length
+          : 0;
+        
+        return {
+          totalUsers,
+          completedUsers,
+          overallConversion: overallConversion.toFixed(1),
+          avgDropOff: Math.max(0, avgDropOff).toFixed(1)
+        };
+      }
       
       return {
-        totalUsers,
-        completedUsers,
-        overallConversion: overallConversion.toFixed(1),
-        avgDropOff: avgDropOff.toFixed(1)
+        totalUsers: 0,
+        completedUsers: 0,
+        overallConversion: '0.0',
+        avgDropOff: '0.0'
+      };
+    } catch (error) {
+      console.error('Error calculating funnel metrics:', error);
+      return {
+        totalUsers: 0,
+        completedUsers: 0,
+        overallConversion: '0.0',
+        avgDropOff: '0.0'
       };
     }
-    
-    return {
-      totalUsers: 0,
-      completedUsers: 0,
-      overallConversion: '0.0',
-      avgDropOff: '0.0'
-    };
   }, [transformedFunnelData, funnelError]);
 
   const handleCreateFunnel = async () => {
@@ -105,12 +194,86 @@ export default function FunnelsPage() {
           event: step,
           name: transformedFunnelData[index]?.step || step
         })),
-        filters: { source: 'dashboard' }
+        filters: { 
+          source: 'dashboard',
+          dateRange: {
+            startDate: dateRange.startDate.toISOString(),
+            endDate: dateRange.endDate.toISOString()
+          }
+        }
       });
     } catch (error) {
       console.error('Failed to create funnel:', error);
     }
   };
+
+  // Enhanced error handling for different error types
+  const getErrorMessage = (error: any) => {
+    if (!error) return null;
+    
+    if (typeof error === 'string') return error;
+    
+    if (error.message) {
+      if (error.message.includes('Network')) {
+        return 'Network connection error. Please check your internet connection.';
+      }
+      if (error.message.includes('timeout')) {
+        return 'Request timeout. The server is taking too long to respond.';
+      }
+      if (error.message.includes('401')) {
+        return 'Authentication required. Please sign in again.';
+      }
+      if (error.message.includes('403')) {
+        return 'Access denied. You don\'t have permission to view this data.';
+      }
+      return error.message;
+    }
+    
+    return 'An unexpected error occurred. Please try again.';
+  };
+
+  // Check if we have any data loading
+  const isAnyLoading = funnelLoading || timeLoading || segmentLoading;
+  
+  // Check if all data sources have errors
+  const hasAllErrors = funnelError && timeError && segmentError;
+
+  // Global error fallback if all APIs fail
+  if (hasAllErrors) {
+    return (
+      <DashboardShell
+        title="Funnel Analysis"
+        description="Track user conversion through custom funnels with real backend data"
+      >
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="text-center space-y-4">
+            <h3 className="text-lg font-semibold">Unable to Load Analytics Data</h3>
+            <p className="text-muted-foreground max-w-md">
+              {getErrorMessage(funnelError || timeError || segmentError)}
+            </p>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => window.location.reload()} 
+                variant="default"
+              >
+                Reload Page
+              </Button>
+              <Button 
+                onClick={() => {
+                  // Trigger manual refetch of all queries
+                  window.location.hash = '#refresh';
+                  window.location.reload();
+                }} 
+                variant="outline"
+              >
+                Try Again
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DashboardShell>
+    );
+  }
 
   return (
     <DashboardShell
@@ -118,6 +281,52 @@ export default function FunnelsPage() {
       description="Track user conversion through custom funnels with real backend data"
     >
       <div className="space-y-6">
+        {/* Date Range Controls */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleDateRangePreset(7)}
+                >
+                  Last 7 Days
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleDateRangePreset(30)}
+                >
+                  Last 30 Days
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleDateRangePreset(90)}
+                >
+                  Last 90 Days
+                </Button>
+              </div>
+              
+              <div className="flex gap-2 items-center">
+                <div className="text-sm text-muted-foreground">
+                  {dateRange.startDate.toLocaleDateString()} - {dateRange.endDate.toLocaleDateString()}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleRefreshData}
+                  disabled={isAnyLoading}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-1 ${isAnyLoading ? 'animate-spin' : ''}`} />
+                  {isAnyLoading ? 'Loading...' : 'Refresh'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Funnel Metrics */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
@@ -270,28 +479,72 @@ export default function FunnelsPage() {
             </CardHeader>
             <CardContent>
               {segmentError ? (
-                <div className="text-sm text-red-600">
-                  ❌ Failed to load segment data. Please try again.
+                <div className="text-center py-4">
+                  <div className="text-sm text-red-600 mb-2">
+                    ❌ {getErrorMessage(segmentError)}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => window.location.reload()}
+                  >
+                    Retry
+                  </Button>
                 </div>
               ) : segmentLoading ? (
-                <div className="text-sm text-muted-foreground">Loading segment data...</div>
-              ) : segmentData && Array.isArray(segmentData) && segmentData.length > 0 ? (
                 <div className="space-y-3">
-                  {segmentData.map((segment, index) => (
-                    <div key={`segment-${index}-${segment.segment}`} className="flex justify-between items-center">
-                      <span className="font-medium">{segment.segment}</span>
-                      <div className="text-right">
-                        <div className="font-semibold">{(segment.totalUsers ?? 0).toLocaleString()}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {(segment.conversionRate ?? segment.completionRate ?? 0).toFixed(1)}% conversion
-                        </div>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex justify-between items-center animate-pulse">
+                      <div className="h-4 bg-muted rounded w-20"></div>
+                      <div className="text-right space-y-1">
+                        <div className="h-4 bg-muted rounded w-12"></div>
+                        <div className="h-3 bg-muted rounded w-16"></div>
                       </div>
                     </div>
                   ))}
                 </div>
+              ) : segmentData && Array.isArray(segmentData) && segmentData.length > 0 ? (
+                <div className="space-y-3">
+                  {segmentData.map((segment, index) => {
+                    const conversionRate = segment.conversionRate ?? segment.completionRate ?? 0;
+                    const isHighConversion = conversionRate > 20;
+                    const isMediumConversion = conversionRate > 10;
+                    
+                    return (
+                      <div key={`segment-${index}-${segment.segment}`} className="flex justify-between items-center p-2 rounded hover:bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{segment.segment}</span>
+                          <div className={`w-2 h-2 rounded-full ${
+                            isHighConversion ? 'bg-green-500' : 
+                            isMediumConversion ? 'bg-yellow-500' : 'bg-red-500'
+                          }`} />
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold">{(segment.totalUsers ?? 0).toLocaleString()}</div>
+                          <div className={`text-xs font-medium ${
+                            isHighConversion ? 'text-green-600' : 
+                            isMediumConversion ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {conversionRate.toFixed(1)}% conversion
+                          </div>
+                          {segment.convertingUsers !== undefined && (
+                            <div className="text-xs text-muted-foreground">
+                              {segment.convertingUsers} converted
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
-                <div className="text-sm text-muted-foreground">
-                  No segment data available for the selected date range
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    No segment data available for the selected date range
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Try selecting a different date range or ensure tracking is active
+                  </p>
                 </div>
               )}
             </CardContent>

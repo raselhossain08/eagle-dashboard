@@ -4,40 +4,46 @@ import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, User, Calendar, Clock, Shield, AlertTriangle, Download } from 'lucide-react';
+import { ArrowLeft, User, Calendar, Clock, Shield, AlertTriangle, Download, Square } from 'lucide-react';
+import { useImpersonationSessionDetail, useEndImpersonation, useForceEndImpersonation } from '@/hooks/useSupport';
 import Link from 'next/link';
-
-// Mock session data
-const mockSession = {
-  id: '1',
-  adminUser: {
-    id: 'admin1',
-    name: 'Sarah Johnson',
-    email: 'sarah@company.com',
-    role: 'Support Manager'
-  },
-  targetUser: {
-    id: 'user1', 
-    name: 'John Doe',
-    email: 'john@example.com',
-    company: 'Acme Inc'
-  },
-  startedAt: '2024-01-15T10:30:00Z',
-  endedAt: '2024-01-15T11:15:00Z',
-  reason: 'Troubleshooting account login issues reported by customer',
-  status: 'ended' as const,
-  actions: [
-    { time: '2024-01-15T10:32:00Z', action: 'Viewed user profile' },
-    { time: '2024-01-15T10:35:00Z', action: 'Checked login history' },
-    { time: '2024-01-15T10:40:00Z', action: 'Reset password' },
-    { time: '2024-01-15T10:45:00Z', action: 'Verified email settings' },
-    { time: '2024-01-15T11:00:00Z', action: 'Tested login functionality' }
-  ]
-};
+import { toast } from 'sonner';
 
 export default function SessionDetailPage() {
   const params = useParams();
   const sessionId = params.sessionId as string;
+  
+  const { data: session, isLoading, error } = useImpersonationSessionDetail(sessionId);
+  const endImpersonation = useEndImpersonation();
+  const forceEndImpersonation = useForceEndImpersonation();
+
+  const handleEndSession = async () => {
+    if (!session) return;
+    try {
+      await endImpersonation.mutateAsync({ 
+        logId: session.id, 
+        reason: 'Manual termination from session detail page' 
+      });
+      toast.success('Impersonation session ended successfully');
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      toast.error('Failed to end impersonation session');
+    }
+  };
+
+  const handleForceEndSession = async () => {
+    if (!session) return;
+    try {
+      await forceEndImpersonation.mutateAsync({ 
+        logId: session.id, 
+        reason: 'Forced termination from session detail page' 
+      });
+      toast.success('Impersonation session force-ended successfully');
+    } catch (error) {
+      console.error('Failed to force end session:', error);
+      toast.error('Failed to force end impersonation session');
+    }
+  };
 
   const getDuration = (start: string, end: string) => {
     const startTime = new Date(start);
@@ -46,6 +52,68 @@ export default function SessionDetailPage() {
     const minutes = Math.floor(diff / 60000);
     return `${minutes} minutes`;
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4">
+          <Link href="/dashboard/support/impersonation">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Impersonation
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Session Details</h1>
+            <p className="text-muted-foreground">Loading session details...</p>
+          </div>
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="h-6 bg-muted rounded w-1/4 animate-pulse" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="h-4 bg-muted rounded animate-pulse" />
+                  <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !session) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4">
+          <Link href="/dashboard/support/impersonation">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Impersonation
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Session Details</h1>
+            <p className="text-muted-foreground">Session not found</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="text-center py-12">
+            <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <h3 className="text-lg font-medium mb-2">Session Not Found</h3>
+            <p className="text-muted-foreground">
+              The requested impersonation session could not be found.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -64,10 +132,32 @@ export default function SessionDetailPage() {
             </p>
           </div>
         </div>
-        <Button variant="outline">
-          <Download className="w-4 h-4 mr-2" />
-          Export Log
-        </Button>
+        <div className="flex items-center space-x-2">
+          {session.status === 'active' && (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={handleEndSession}
+                disabled={endImpersonation.isPending}
+              >
+                <Square className="w-4 h-4 mr-2" />
+                End Session
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleForceEndSession}
+                disabled={forceEndImpersonation.isPending}
+              >
+                <AlertTriangle className="w-4 h-4 mr-2" />
+                Force End
+              </Button>
+            </>
+          )}
+          <Button variant="outline">
+            <Download className="w-4 h-4 mr-2" />
+            Export Log
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -88,9 +178,9 @@ export default function SessionDetailPage() {
                       <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div>
-                      <div className="font-medium">{mockSession.adminUser.name}</div>
-                      <div className="text-sm text-muted-foreground">{mockSession.adminUser.email}</div>
-                      <Badge variant="outline" className="mt-1">{mockSession.adminUser.role}</Badge>
+                      <div className="font-medium">{session.adminUser.name}</div>
+                      <div className="text-sm text-muted-foreground">{session.adminUser.email}</div>
+                      <Badge variant="outline" className="mt-1">{session.adminUser.role}</Badge>
                     </div>
                   </div>
                 </div>
@@ -102,9 +192,11 @@ export default function SessionDetailPage() {
                       <User className="w-5 h-5 text-green-600 dark:text-green-400" />
                     </div>
                     <div>
-                      <div className="font-medium">{mockSession.targetUser.name}</div>
-                      <div className="text-sm text-muted-foreground">{mockSession.targetUser.email}</div>
-                      <div className="text-sm text-muted-foreground">{mockSession.targetUser.company}</div>
+                      <div className="font-medium">{session.targetUser.name}</div>
+                      <div className="text-sm text-muted-foreground">{session.targetUser.email}</div>
+                      {session.targetUser.company && (
+                        <div className="text-sm text-muted-foreground">{session.targetUser.company}</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -113,7 +205,7 @@ export default function SessionDetailPage() {
               <div>
                 <h3 className="font-semibold mb-2">Reason for Impersonation</h3>
                 <p className="text-muted-foreground p-3 border rounded-lg bg-muted/50">
-                  {mockSession.reason}
+                  {session.reason}
                 </p>
               </div>
 
@@ -122,15 +214,23 @@ export default function SessionDetailPage() {
                   <h3 className="font-semibold mb-2">Session Duration</h3>
                   <div className="flex items-center space-x-2 p-3 border rounded-lg">
                     <Clock className="w-5 h-5 text-muted-foreground" />
-                    <span>{getDuration(mockSession.startedAt, mockSession.endedAt!)}</span>
+                    <span>
+                      {session.endedAt ? 
+                        getDuration(session.startedAt, session.endedAt) : 
+                        'Active'
+                      }
+                    </span>
                   </div>
                 </div>
                 
                 <div>
                   <h3 className="font-semibold mb-2">Session Status</h3>
                   <div className="p-3 border rounded-lg">
-                    <Badge variant={mockSession.status === 'ended' ? 'secondary' : 'default'}>
-                      {mockSession.status.replace('_', ' ')}
+                    <Badge variant={
+                      session.status === 'active' ? 'default' : 
+                      session.status === 'force_ended' ? 'destructive' : 'secondary'
+                    }>
+                      {session.status.replace('_', ' ')}
                     </Badge>
                   </div>
                 </div>
@@ -146,19 +246,26 @@ export default function SessionDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {mockSession.actions.map((action, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 border rounded-lg">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
-                    <div className="flex-1">
-                      <div className="font-medium">{action.action}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(action.time).toLocaleString()}
+              {!session.actions || session.actions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No activity logged for this session</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {session.actions.map((action, index) => (
+                    <div key={index} className="flex items-start space-x-3 p-3 border rounded-lg">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
+                      <div className="flex-1">
+                        <div className="font-medium">{action.action}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {new Date(action.time).toLocaleString()}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -174,19 +281,28 @@ export default function SessionDetailPage() {
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm">IP Address</span>
-                <Badge variant="outline">192.168.1.100</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Location</span>
-                <Badge variant="outline">New York, US</Badge>
+                <Badge variant="outline">{session.ipAddress || 'N/A'}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">User Agent</span>
-                <Badge variant="outline">Chrome/120.0</Badge>
+                <Badge variant="outline">
+                  {session.userAgent ? 
+                    session.userAgent.split('/')[0] || session.userAgent.substring(0, 20) : 
+                    'N/A'
+                  }
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Started At</span>
+                <Badge variant="outline">
+                  {new Date(session.startedAt).toLocaleDateString()}
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">Security Level</span>
-                <Badge variant="default">Standard</Badge>
+                <Badge variant={session.status === 'active' ? 'default' : 'secondary'}>
+                  {session.status === 'active' ? 'Active' : 'Secured'}
+                </Badge>
               </div>
             </CardContent>
           </Card>

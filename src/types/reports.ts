@@ -15,6 +15,28 @@ export interface QuickMetric {
   format: 'currency' | 'number' | 'percentage';
 }
 
+// Enhanced Dashboard Types
+export interface DashboardOverview {
+  overview: ReportsOverview;
+  quickMetrics: QuickMetric[];
+  analytics: {
+    bounceRate: number;
+    avgSessionDuration: number;
+    newUsers: number;
+    returningUsers: number;
+  };
+}
+
+export interface ReportListItem {
+  id: string;
+  name: string;
+  type: 'financial' | 'user' | 'custom';
+  createdAt: string;
+  updatedAt: string;
+  status: 'completed' | 'processing' | 'failed';
+  size?: string;
+}
+
 export interface Report {
   id: string;
   name: string;

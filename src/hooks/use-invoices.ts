@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Invoice, InvoicesQueryParams, CreateInvoiceDto } from '@/types/billing';
 import { InvoicesService } from '@/lib/services/invoices.service';
+import { TokenStorageService } from '@/lib/auth/token-storage.service';
 
 const invoicesService = new InvoicesService();
 
@@ -86,7 +87,7 @@ export const useSubscriptionInvoices = (subscriptionId: string) => {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/billing/subscriptions/${subscriptionId}/invoices`, {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'Authorization': `Bearer ${TokenStorageService.getAccessToken()}`,
         },
       });
       
